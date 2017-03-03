@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.activemq.artemis.core.remoting.impl.invm.TransportConstants;
+
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -35,8 +36,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class ArtemisProperties {
 
 	/**
-	 * Artemis deployment mode, auto-detected by default. Can be explicitly set to
-	 * "native" or "embedded".
+	 * Artemis deployment mode, auto-detected by default.
 	 */
 	private ArtemisMode mode;
 
@@ -49,6 +49,16 @@ public class ArtemisProperties {
 	 * Artemis broker port.
 	 */
 	private int port = 61616;
+
+	/**
+	 * Login user of the broker.
+	 */
+	private String user;
+
+	/**
+	 * Login password of the broker.
+	 */
+	private String password;
 
 	private final Embedded embedded = new Embedded();
 
@@ -74,6 +84,22 @@ public class ArtemisProperties {
 
 	public void setPort(int port) {
 		this.port = port;
+	}
+
+	public String getUser() {
+		return this.user;
+	}
+
+	public void setUser(String user) {
+		this.user = user;
+	}
+
+	public String getPassword() {
+		return this.password;
+	}
+
+	public void setPassword(String password) {
+		this.password = password;
 	}
 
 	public Embedded getEmbedded() {

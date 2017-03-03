@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,21 +28,25 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.WebApplicationType;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.event.ContextRefreshedEvent;
+import org.springframework.test.util.ReflectionTestUtils;
 
-import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.nullValue;
-import static org.junit.Assert.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 /**
  * Tests for {@link SpringApplicationAdminMXBeanRegistrar}.
  *
  * @author Stephane Nicoll
+ * @author Andy Wilkinson
  */
 public class SpringApplicationAdminMXBeanRegistrarTests {
 
@@ -71,12 +75,12 @@ public class SpringApplicationAdminMXBeanRegistrarTests {
 	public void validateReadyFlag() {
 		final ObjectName objectName = createObjectName(OBJECT_NAME);
 		SpringApplication application = new SpringApplication(Config.class);
-		application.setWebEnvironment(false);
+		application.setWebApplicationType(WebApplicationType.NONE);
 		application.addListeners(new ApplicationListener<ContextRefreshedEvent>() {
 			@Override
 			public void onApplicationEvent(ContextRefreshedEvent event) {
 				try {
-					assertThat(isApplicationReady(objectName), is(false));
+					assertThat(isApplicationReady(objectName)).isFalse();
 				}
 				catch (Exception ex) {
 					throw new IllegalStateException(
@@ -85,30 +89,49 @@ public class SpringApplicationAdminMXBeanRegistrarTests {
 			}
 		});
 		this.context = application.run();
-		assertThat(isApplicationReady(objectName), is(true));
+		assertThat(isApplicationReady(objectName)).isTrue();
+	}
+
+	@Test
+	public void eventsFromOtherContextsAreIgnored() throws MalformedObjectNameException {
+		SpringApplicationAdminMXBeanRegistrar registrar = new SpringApplicationAdminMXBeanRegistrar(
+				OBJECT_NAME);
+		ConfigurableApplicationContext context = mock(
+				ConfigurableApplicationContext.class);
+		registrar.setApplicationContext(context);
+		registrar.onApplicationEvent(new ApplicationReadyEvent(new SpringApplication(),
+				null, mock(ConfigurableApplicationContext.class)));
+		assertThat(isApplicationReady(registrar)).isFalse();
+		registrar.onApplicationEvent(
+				new ApplicationReadyEvent(new SpringApplication(), null, context));
+		assertThat(isApplicationReady(registrar)).isTrue();
+	}
+
+	private boolean isApplicationReady(SpringApplicationAdminMXBeanRegistrar registrar) {
+		return (Boolean) ReflectionTestUtils.getField(registrar, "ready");
 	}
 
 	@Test
 	public void environmentIsExposed() {
 		final ObjectName objectName = createObjectName(OBJECT_NAME);
 		SpringApplication application = new SpringApplication(Config.class);
-		application.setWebEnvironment(false);
+		application.setWebApplicationType(WebApplicationType.NONE);
 		this.context = application.run("--foo.bar=blam");
-		assertThat(isApplicationReady(objectName), is(true));
-		assertThat(isApplicationEmbeddedWebApplication(objectName), is(false));
-		assertThat(getProperty(objectName, "foo.bar"), is("blam"));
-		assertThat(getProperty(objectName, "does.not.exist.test"), is(nullValue()));
+		assertThat(isApplicationReady(objectName)).isTrue();
+		assertThat(isApplicationEmbeddedWebApplication(objectName)).isFalse();
+		assertThat(getProperty(objectName, "foo.bar")).isEqualTo("blam");
+		assertThat(getProperty(objectName, "does.not.exist.test")).isNull();
 	}
 
 	@Test
 	public void shutdownApp() throws InstanceNotFoundException {
 		final ObjectName objectName = createObjectName(OBJECT_NAME);
 		SpringApplication application = new SpringApplication(Config.class);
-		application.setWebEnvironment(false);
+		application.setWebApplicationType(WebApplicationType.NONE);
 		this.context = application.run();
-		assertThat(this.context.isRunning(), is(true));
+		assertThat(this.context.isRunning()).isTrue();
 		invokeShutdown(objectName);
-		assertThat(this.context.isRunning(), is(false));
+		assertThat(this.context.isRunning()).isFalse();
 		this.thrown.expect(InstanceNotFoundException.class); // JMX cleanup
 		this.mBeanServer.getObjectInstance(objectName);
 	}
@@ -134,7 +157,7 @@ public class SpringApplicationAdminMXBeanRegistrarTests {
 	private <T> T getAttribute(ObjectName objectName, Class<T> type, String attribute) {
 		try {
 			Object value = this.mBeanServer.getAttribute(objectName, attribute);
-			assertThat((value == null || type.isInstance(value)), is(true));
+			assertThat(value == null || type.isInstance(value)).isTrue();
 			return type.cast(value);
 		}
 		catch (Exception ex) {

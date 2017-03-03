@@ -42,7 +42,7 @@ categorized under "hints":
 			"sourceType": "org.springframework.boot.autoconfigure.web.ServerProperties"
 		},
 		{
-			"name": "server.servlet-path",
+			"name": "server.servlet.path",
 			"type": "java.lang.String",
 			"sourceType": "org.springframework.boot.autoconfigure.web.ServerProperties",
 			"defaultValue": "/"
@@ -84,18 +84,18 @@ categorized under "hints":
 ----
 
 Each "`property`" is a configuration item that the user specifies with a given value.
-For example `server.port` and `server.servlet-path` might be specified in
+For example `server.port` and `server.servlet.path` might be specified in
 `application.properties` as follows:
 
 [source,properties,indent=0]
 ----
 	server.port=9090
-	server.servlet-path=/home
+	server.servlet.path=/home
 ----
 
 The "`groups`" are higher level items that don't themselves specify a value, but instead
 provide a contextual grouping for properties. For example the `server.port` and
-`server.servlet-path` properties are part of the `server` group.
+`server.servlet.path` properties are part of the `server` group.
 
 NOTE: It is not required that every "`property`" has a "`group`", some properties might
 just exist in their own right.
@@ -160,16 +160,17 @@ The JSON object contained in the `properties` array can contain the following at
 |`name`
 | String
 | The full name of the property. Names are in lowercase dashed form (e.g.
-  `server.servlet-path`). This attribute is mandatory.
+  `server.servlet.path`). This attribute is mandatory.
 
 |`type`
 | String
-| The class name of the data type of the property. For example, `java.lang.String`. This
-  attribute can be used to guide the user as to the types of values that they can enter.
-  For consistency, the type of a primitive is specified using its wrapper counterpart,
-  i.e. `boolean` becomes `java.lang.Boolean`. Note that this class may be a complex type
-  that gets converted from a String as values are bound. May be omitted if the type is
-  not known.
+| The full signature of the data type of the property. For example, `java.lang.String`
+  but also a full generic type such as `java.util.Map<java.util.String,acme.MyEnum>`.
+  This attribute can be used to guide the user as to the types of values that they can
+  enter. For consistency, the type of a primitive is specified using its wrapper
+  counterpart, i.e. `boolean` becomes `java.lang.Boolean`. Note that this class may be
+  a complex type that gets converted from a String as values are bound. May be omitted
+  if the type is not known.
 
 |`description`
 | String
@@ -222,6 +223,41 @@ the `deprecation` element. This is still supported in a deprecated fashion and s
 be used. If no reason and replacement are available, an empty `deprecation` object should be
 set.
 
+Deprecation can also be specified declaratively in code by adding the
+`@DeprecatedConfigurationProperty` annotation to the getter exposing the deprecated
+property. For instance, let's assume the `app.foo.target` property was confusing and
+was renamed to `app.foo.name`
+
+[source,java,indent=0]
+----
+	@ConfigurationProperties("app.foo")
+	public class FooProperties {
+
+		private String name;
+
+		public String getName() { ... }
+
+		public void setName(String name) { ... }
+
+		@DeprecatedConfigurationProperty(replacement = "app.foo.name")
+		@Deprecated
+		public String getTarget() {
+			return getName();
+		}
+
+		@Deprecated
+		public void setTarget(String target) {
+			setName(target);
+		}
+	}
+----
+
+The code above makes sure that the deprecated property still works (delegating
+to the `name` property behind the scenes). Once the `getTarget` and `setTarget`
+methods can be removed from your public API, the automatic deprecation hint in the
+meta-data will go away as well.
+
+
 
 [[configuration-metadata-hints-attributes]]
 ==== Hint Attributes
@@ -234,7 +270,7 @@ The JSON object contained in the `hints` array can contain the following attribu
 |`name`
 | String
 | The full name of the property that this hint refers to. Names are in lowercase dashed
-  form (e.g. `server.servlet-path`). If the property refers to a map (e.g.
+  form (e.g. `server.servlet.path`). If the property refers to a map (e.g.
   `system.contexts`) the hint either applies to the _keys_ of the map (`system.context.keys`)
    or the values (`system.context.values`). This attribute is mandatory.
 
@@ -293,10 +329,10 @@ following attributes:
 [[configuration-metadata-repeated-items]]
 ==== Repeated meta-data items
 It is perfectly acceptable for "`property`" and "`group`" objects with the same name to
-appear multiple times within a meta-data file. For example, Spring Boot binds
-`spring.datasource` properties to Hikari, Tomcat and DBCP classes, with each potentially
-offering overlap of property names. Consumers of meta-data should take care to ensure
-that they support such scenarios.
+appear multiple times within a meta-data file. For example, you could bind two separate
+classes to the same prefix, with each potentially offering overlap of property names.
+While this is not supposed to be a frequent scenario, consumers of meta-data should take
+care to ensure that they support such scenarios.
 
 
 
@@ -459,14 +495,14 @@ provider supports these parameters:
 |===
 
 
-The meta-data snippet below corresponds to the standard `server.jsp-servlet.class-name`
+The meta-data snippet below corresponds to the standard `server.servlet.jsp.class-name`
 property that defines the `JspServlet` class name to use:
 
 [source,json,indent=0]
 ----
 	{"hints": [
 		{
-			"name": "server.jsp-servlet.class-name",
+			"name": "server.servlet.jsp.class-name",
 			"providers": [
 				{
 					"name": "class-reference",
@@ -693,14 +729,13 @@ and specify:
 	}
 
 	compileJava.dependsOn(processResources)
-}
 ----
 
 NOTE: You need to add `compileJava.dependsOn(processResources)` to your build to ensure
 that resources are processed before code is compiled. Without this directive any
 `additional-spring-configuration-metadata.json` files will not be processed.
 
-The processor will pickup both classes and methods that are annotated with
+The processor will pick up both classes and methods that are annotated with
 `@ConfigurationProperties`. The Javadoc for field values within configuration classes
 will be used to populate the `description` attribute.
 
@@ -711,6 +746,26 @@ Properties are discovered via the presence of standard getters and setters with 
 handling for collection types (that will be detected even if only a getter is present). The
 annotation processor also supports the use of the `@Data`, `@Getter` and `@Setter` lombok
 annotations.
+
+[NOTE]
+====
+If you are using AspectJ in your project, you need to make sure that the annotation
+processor only runs once. There are several ways to do this: with Maven, you can
+configure the `maven-apt-plugin` explicitly and add the dependency to the annotation
+processor only there. You could also let the AspectJ plugin run all the processing
+and disable annotation processing in the `maven-compiler-plugin` configuration:
+
+[source,xml,indent=0,subs="verbatim,quotes,attributes"]
+----
+	<plugin>
+		<groupId>org.apache.maven.plugins</groupId>
+		<artifactId>maven-compiler-plugin</artifactId>
+		<configuration>
+			<proc>none</proc>
+		</configuration>
+	</plugin>
+----
+====
 
 
 

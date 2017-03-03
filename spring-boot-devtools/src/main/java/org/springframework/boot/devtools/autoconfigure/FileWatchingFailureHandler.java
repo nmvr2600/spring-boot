@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,18 +42,17 @@ class FileWatchingFailureHandler implements FailureHandler {
 
 	@Override
 	public Outcome handle(Throwable failure) {
-		failure.printStackTrace();
 		CountDownLatch latch = new CountDownLatch(1);
 		FileSystemWatcher watcher = this.fileSystemWatcherFactory.getFileSystemWatcher();
-		watcher.addSourceFolders(new ClassPathFolders(Restarter.getInstance()
-				.getInitialUrls()));
+		watcher.addSourceFolders(
+				new ClassPathFolders(Restarter.getInstance().getInitialUrls()));
 		watcher.addListener(new Listener(latch));
 		watcher.start();
 		try {
 			latch.await();
 		}
 		catch (InterruptedException ex) {
-			// Ignore
+			Thread.currentThread().interrupt();
 		}
 		return Outcome.RETRY;
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.springframework.beans.factory.support.BeanNameGenerator;
 import org.springframework.boot.Banner;
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.WebApplicationType;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ApplicationListener;
@@ -46,12 +47,12 @@ import org.springframework.core.io.ResourceLoader;
  * new SpringApplicationBuilder(ParentConfig.class).child(ChildConfig.class).run(args);
  * </pre>
  *
- * Another common use case is setting default arguments, e.g. active Spring profiles, to
- * set up the environment for an application:
+ * Another common use case is setting active profiles and default properties to set up the
+ * environment for an application:
  *
  * <pre class="code">
  * new SpringApplicationBuilder(Application.class).profiles(&quot;server&quot;)
- * 		.defaultArgs(&quot;--transport=local&quot;).run(args);
+ * 		.properties(&quot;transport=local&quot;).run(args);
  * </pre>
  *
  * <p>
@@ -59,6 +60,7 @@ import org.springframework.core.io.ResourceLoader;
  * SpringApplication instead.
  *
  * @author Dave Syer
+ * @author Andy Wilkinson
  */
 public class SpringApplicationBuilder {
 
@@ -79,6 +81,8 @@ public class SpringApplicationBuilder {
 	private Set<String> additionalProfiles = new LinkedHashSet<String>();
 
 	private boolean registerShutdownHookApplied;
+
+	private boolean configuredAsChild = false;
 
 	public SpringApplicationBuilder(Object... sources) {
 		this.application = createSpringApplication(sources);
@@ -120,19 +124,11 @@ public class SpringApplicationBuilder {
 	 * @return an application context created from the current state
 	 */
 	public ConfigurableApplicationContext run(String... args) {
-		if (this.parent != null) {
-			// If there is a parent don't register a shutdown hook
-			if (!this.registerShutdownHookApplied) {
-				this.application.setRegisterShutdownHook(false);
-			}
-			// initialize it and make sure it is added to the current context
-			initializers(new ParentContextApplicationContextInitializer(
-					this.parent.run(args)));
-		}
 		if (this.running.get()) {
 			// If already created we just return the existing context
 			return this.context;
 		}
+		configureAsChildIfNecessary(args);
 		if (this.running.compareAndSet(false, true)) {
 			synchronized (this.running) {
 				// If not already running copy the sources over and then run.
@@ -142,11 +138,33 @@ public class SpringApplicationBuilder {
 		return this.context;
 	}
 
+	private void configureAsChildIfNecessary(String... args) {
+		if (this.parent != null && !this.configuredAsChild) {
+			this.configuredAsChild = true;
+			if (!this.registerShutdownHookApplied) {
+				this.application.setRegisterShutdownHook(false);
+			}
+			initializers(new ParentContextApplicationContextInitializer(
+					this.parent.run(args)));
+		}
+	}
+
 	/**
 	 * Returns a fully configured {@link SpringApplication} that is ready to run.
 	 * @return the fully configured {@link SpringApplication}.
 	 */
 	public SpringApplication build() {
+		return build(new String[0]);
+	}
+
+	/**
+	 * Returns a fully configured {@link SpringApplication} that is ready to run. Any
+	 * parent that has been configured will be run with the given {@code args}.
+	 * @param args the parent's args
+	 * @return the fully configured {@link SpringApplication}.
+	 */
+	public SpringApplication build(String... args) {
+		configureAsChildIfNecessary(args);
 		this.application.setSources(this.sources);
 		return this.application;
 	}
@@ -172,7 +190,7 @@ public class SpringApplicationBuilder {
 		web(false);
 
 		// Probably not interested in multiple banners
-		showBanner(false);
+		bannerMode(Banner.Mode.OFF);
 
 		// Make sure sources get copied over
 		this.application.setSources(this.sources);
@@ -279,9 +297,23 @@ public class SpringApplicationBuilder {
 	 * classpath if not set).
 	 * @param webEnvironment the flag to set
 	 * @return the current builder
+	 * @deprecated since 2.0.0 in favour of {@link #web(WebApplicationType)}
 	 */
+	@Deprecated
 	public SpringApplicationBuilder web(boolean webEnvironment) {
 		this.application.setWebEnvironment(webEnvironment);
+		return this;
+	}
+
+	/**
+	 * Flag to explicitly request a specific type of web application. Auto-detected based
+	 * on the classpath if not set.
+	 * @param webApplication the type of web application
+	 * @return the current builder
+	 * @since 2.0.0
+	 */
+	public SpringApplicationBuilder web(WebApplicationType webApplication) {
+		this.application.setWebApplicationType(webApplication);
 		return this;
 	}
 
@@ -306,13 +338,8 @@ public class SpringApplicationBuilder {
 		return this;
 	}
 
-	/**
-	 * Flag to indicate the startup banner should be printed.
-	 * @param showBanner the flag to set. Default true.
-	 * @return the current builder
-	 */
-	public SpringApplicationBuilder showBanner(boolean showBanner) {
-		this.application.setShowBanner(showBanner);
+	public SpringApplicationBuilder bannerMode(Banner.Mode bannerMode) {
+		this.application.setBannerMode(bannerMode);
 		return this;
 	}
 
@@ -370,18 +397,26 @@ public class SpringApplicationBuilder {
 		return properties(getMapFromKeyValuePairs(defaultProperties));
 	}
 
-	private Map<String, Object> getMapFromKeyValuePairs(String[] args) {
+	private Map<String, Object> getMapFromKeyValuePairs(String[] properties) {
 		Map<String, Object> map = new HashMap<String, Object>();
-		for (String pair : args) {
-			int index = pair.indexOf(":");
-			if (index <= 0) {
-				index = pair.indexOf("=");
-			}
-			String key = pair.substring(0, index > 0 ? index : pair.length());
-			String value = index > 0 ? pair.substring(index + 1) : "";
+		for (String property : properties) {
+			int index = lowestIndexOf(property, ":", "=");
+			String key = property.substring(0, index > 0 ? index : property.length());
+			String value = index > 0 ? property.substring(index + 1) : "";
 			map.put(key, value);
 		}
 		return map;
+	}
+
+	private int lowestIndexOf(String property, String... candidates) {
+		int index = -1;
+		for (String candidate : candidates) {
+			int candidateIndex = property.indexOf(candidate);
+			if (candidateIndex > 0) {
+				index = (index == -1 ? candidateIndex : Math.min(index, candidateIndex));
+			}
+		}
+		return index;
 	}
 
 	/**
@@ -445,7 +480,8 @@ public class SpringApplicationBuilder {
 	 * @param beanNameGenerator the generator to set.
 	 * @return the current builder
 	 */
-	public SpringApplicationBuilder beanNameGenerator(BeanNameGenerator beanNameGenerator) {
+	public SpringApplicationBuilder beanNameGenerator(
+			BeanNameGenerator beanNameGenerator) {
 		this.application.setBeanNameGenerator(beanNameGenerator);
 		return this;
 	}

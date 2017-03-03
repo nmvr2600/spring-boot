@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ import java.util.zip.ZipEntry;
  * @author Phillip Webb
  * @author Andy Wilkinson
  */
-public class JarWriter {
+public class JarWriter implements LoaderClassesWriter {
 
 	private static final String NESTED_LOADER_JAR = "META-INF/loader/spring-boot-loader.jar";
 
@@ -76,8 +76,8 @@ public class JarWriter {
 	 * @throws IOException if the file cannot be opened
 	 * @throws FileNotFoundException if the file cannot be found
 	 */
-	public JarWriter(File file, LaunchScript launchScript) throws FileNotFoundException,
-			IOException {
+	public JarWriter(File file, LaunchScript launchScript)
+			throws FileNotFoundException, IOException {
 		FileOutputStream fileOutputStream = new FileOutputStream(file);
 		if (launchScript != null) {
 			fileOutputStream.write(launchScript.toByteArray());
@@ -120,6 +120,11 @@ public class JarWriter {
 	 * @throws IOException if the entries cannot be written
 	 */
 	public void writeEntries(JarFile jarFile) throws IOException {
+		this.writeEntries(jarFile, new IdentityEntryTransformer());
+	}
+
+	void writeEntries(JarFile jarFile, EntryTransformer entryTransformer)
+			throws IOException {
 		Enumeration<JarEntry> entries = jarFile.entries();
 		while (entries.hasMoreElements()) {
 			JarEntry entry = entries.nextElement();
@@ -133,7 +138,10 @@ public class JarWriter {
 							jarFile.getInputStream(entry));
 				}
 				EntryWriter entryWriter = new InputStreamEntryWriter(inputStream, true);
-				writeEntry(entry, entryWriter);
+				JarEntry transformedEntry = entryTransformer.transform(entry);
+				if (transformedEntry != null) {
+					writeEntry(transformedEntry, entryWriter);
+				}
 			}
 			finally {
 				inputStream.close();
@@ -147,6 +155,7 @@ public class JarWriter {
 	 * @param inputStream The stream from which the entry's data can be read
 	 * @throws IOException if the write fails
 	 */
+	@Override
 	public void writeEntry(String entryName, InputStream inputStream) throws IOException {
 		JarEntry entry = new JarEntry(entryName);
 		writeEntry(entry, new InputStreamEntryWriter(inputStream, true));
@@ -196,10 +205,22 @@ public class JarWriter {
 	 * Write the required spring-boot-loader classes to the JAR.
 	 * @throws IOException if the classes cannot be written
 	 */
+	@Override
 	public void writeLoaderClasses() throws IOException {
-		URL loaderJar = getClass().getClassLoader().getResource(NESTED_LOADER_JAR);
-		JarInputStream inputStream = new JarInputStream(new BufferedInputStream(
-				loaderJar.openStream()));
+		writeLoaderClasses(NESTED_LOADER_JAR);
+	}
+
+	/**
+	 * Write the required spring-boot-loader classes to the JAR.
+	 * @param loaderJarResourceName the name of the resource containing the loader classes
+	 * to be written
+	 * @throws IOException if the classes cannot be written
+	 */
+	@Override
+	public void writeLoaderClasses(String loaderJarResourceName) throws IOException {
+		URL loaderJar = getClass().getClassLoader().getResource(loaderJarResourceName);
+		JarInputStream inputStream = new JarInputStream(
+				new BufferedInputStream(loaderJar.openStream()));
 		JarEntry entry;
 		while ((entry = inputStream.getNextJarEntry()) != null) {
 			if (entry.getName().endsWith(".class")) {
@@ -323,8 +344,8 @@ public class JarWriter {
 
 		@Override
 		public int read(byte[] b, int off, int len) throws IOException {
-			int read = (this.headerStream == null ? -1 : this.headerStream.read(b, off,
-					len));
+			int read = (this.headerStream == null ? -1
+					: this.headerStream.read(b, off, len));
 			if (read != -1) {
 				this.headerStream = null;
 				return read;
@@ -335,6 +356,7 @@ public class JarWriter {
 		public boolean hasZipHeader() {
 			return Arrays.equals(this.header, ZIP_HEADER);
 		}
+
 	}
 
 	/**
@@ -375,6 +397,29 @@ public class JarWriter {
 			entry.setCrc(this.crc.getValue());
 			entry.setMethod(ZipEntry.STORED);
 		}
+
+	}
+
+	/**
+	 * An {@code EntryTransformer} enables the transformation of {@link JarEntry jar
+	 * entries} during the writing process.
+	 */
+	interface EntryTransformer {
+
+		JarEntry transform(JarEntry jarEntry);
+
+	}
+
+	/**
+	 * An {@code EntryTransformer} that returns the entry unchanged.
+	 */
+	private static final class IdentityEntryTransformer implements EntryTransformer {
+
+		@Override
+		public JarEntry transform(JarEntry jarEntry) {
+			return jarEntry;
+		}
+
 	}
 
 }

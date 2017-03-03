@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+
 import org.springframework.util.Assert;
 
 /**
@@ -48,9 +49,16 @@ public class LiveReloadServer {
 	 */
 	public static final int DEFAULT_PORT = 35729;
 
-	private static Log logger = LogFactory.getLog(LiveReloadServer.class);
+	private static final Log logger = LogFactory.getLog(LiveReloadServer.class);
 
 	private static final int READ_TIMEOUT = (int) TimeUnit.SECONDS.toMillis(4);
+
+	private final ExecutorService executor = Executors
+			.newCachedThreadPool(new WorkerThreadFactory());
+
+	private final List<Connection> connections = new ArrayList<Connection>();
+
+	private final Object monitor = new Object();
 
 	private final int port;
 
@@ -59,11 +67,6 @@ public class LiveReloadServer {
 	private ServerSocket serverSocket;
 
 	private Thread listenThread;
-
-	private ExecutorService executor = Executors
-			.newCachedThreadPool(new WorkerThreadFactory());
-
-	private List<Connection> connections = new ArrayList<Connection>();
 
 	/**
 	 * Create a new {@link LiveReloadServer} listening on the default port.
@@ -111,29 +114,33 @@ public class LiveReloadServer {
 	 * Start the livereload server and accept incoming connections.
 	 * @throws IOException in case of I/O errors
 	 */
-	public synchronized void start() throws IOException {
-		Assert.state(!isStarted(), "Server already started");
-		logger.debug("Starting live reload server on port " + this.port);
-		this.serverSocket = new ServerSocket(this.port);
-		this.listenThread = this.threadFactory.newThread(new Runnable() {
+	public void start() throws IOException {
+		synchronized (this.monitor) {
+			Assert.state(!isStarted(), "Server already started");
+			logger.debug("Starting live reload server on port " + this.port);
+			this.serverSocket = new ServerSocket(this.port);
+			this.listenThread = this.threadFactory.newThread(new Runnable() {
 
-			@Override
-			public void run() {
-				acceptConnections();
-			}
+				@Override
+				public void run() {
+					acceptConnections();
+				}
 
-		});
-		this.listenThread.setDaemon(true);
-		this.listenThread.setName("Live Reload Server");
-		this.listenThread.start();
+			});
+			this.listenThread.setDaemon(true);
+			this.listenThread.setName("Live Reload Server");
+			this.listenThread.start();
+		}
 	}
 
 	/**
 	 * Return if the server has been started.
 	 * @return {@code true} if the server is running
 	 */
-	public synchronized boolean isStarted() {
-		return this.listenThread != null;
+	public boolean isStarted() {
+		synchronized (this.monitor) {
+			return this.listenThread != null;
+		}
 	}
 
 	/**
@@ -167,25 +174,27 @@ public class LiveReloadServer {
 	 * Gracefully stop the livereload server.
 	 * @throws IOException in case of I/O errors
 	 */
-	public synchronized void stop() throws IOException {
-		if (this.listenThread != null) {
-			closeAllConnections();
-			try {
-				this.executor.shutdown();
-				this.executor.awaitTermination(1, TimeUnit.MINUTES);
+	public void stop() throws IOException {
+		synchronized (this.monitor) {
+			if (this.listenThread != null) {
+				closeAllConnections();
+				try {
+					this.executor.shutdown();
+					this.executor.awaitTermination(1, TimeUnit.MINUTES);
+				}
+				catch (InterruptedException ex) {
+					Thread.currentThread().interrupt();
+				}
+				this.serverSocket.close();
+				try {
+					this.listenThread.join();
+				}
+				catch (InterruptedException ex) {
+					Thread.currentThread().interrupt();
+				}
+				this.listenThread = null;
+				this.serverSocket = null;
 			}
-			catch (InterruptedException ex) {
-				Thread.currentThread().interrupt();
-			}
-			this.serverSocket.close();
-			try {
-				this.listenThread.join();
-			}
-			catch (InterruptedException ex) {
-				Thread.currentThread().interrupt();
-			}
-			this.listenThread = null;
-			this.serverSocket = null;
 		}
 	}
 
@@ -201,13 +210,15 @@ public class LiveReloadServer {
 	 * Trigger livereload of all connected clients.
 	 */
 	public void triggerReload() {
-		synchronized (this.connections) {
-			for (Connection connection : this.connections) {
-				try {
-					connection.triggerReload();
-				}
-				catch (Exception ex) {
-					logger.debug("Unable to send reload message", ex);
+		synchronized (this.monitor) {
+			synchronized (this.connections) {
+				for (Connection connection : this.connections) {
+					try {
+						connection.triggerReload();
+					}
+					catch (Exception ex) {
+						logger.debug("Unable to send reload message", ex);
+					}
 				}
 			}
 		}
@@ -240,6 +251,7 @@ public class LiveReloadServer {
 
 	/**
 	 * {@link Runnable} to handle a single connection.
+	 *
 	 * @see Connection
 	 */
 	private class ConnectionHandler implements Runnable {

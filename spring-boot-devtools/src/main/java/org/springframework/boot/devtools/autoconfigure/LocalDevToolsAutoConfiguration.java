@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,6 +46,8 @@ import org.springframework.util.StringUtils;
  * {@link EnableAutoConfiguration Auto-configuration} for local development support.
  *
  * @author Phillip Webb
+ * @author Andy Wilkinson
+ * @author Vladimir Tsanev
  * @since 1.3.0
  */
 @Configuration
@@ -105,7 +107,7 @@ public class LocalDevToolsAutoConfiguration {
 		public void onClassPathChanged(ClassPathChangedEvent event) {
 			if (event.isRestartRequired()) {
 				Restarter.getInstance().restart(
-						new FileWatchingFailureHandler(getFileSystemWatcherFactory()));
+						new FileWatchingFailureHandler(fileSystemWatcherFactory()));
 			}
 		}
 
@@ -114,7 +116,7 @@ public class LocalDevToolsAutoConfiguration {
 		public ClassPathFileSystemWatcher classPathFileSystemWatcher() {
 			URL[] urls = Restarter.getInstance().getInitialUrls();
 			ClassPathFileSystemWatcher watcher = new ClassPathFileSystemWatcher(
-					getFileSystemWatcherFactory(), classPathRestartStrategy(), urls);
+					fileSystemWatcherFactory(), classPathRestartStrategy(), urls);
 			watcher.setStopWatcherOnRestart(true);
 			return watcher;
 		}
@@ -122,12 +124,17 @@ public class LocalDevToolsAutoConfiguration {
 		@Bean
 		@ConditionalOnMissingBean
 		public ClassPathRestartStrategy classPathRestartStrategy() {
-			return new PatternClassPathRestartStrategy(this.properties.getRestart()
-					.getAllExclude());
+			return new PatternClassPathRestartStrategy(
+					this.properties.getRestart().getAllExclude());
 		}
 
 		@Bean
-		public FileSystemWatcherFactory getFileSystemWatcherFactory() {
+		public HateoasObjenesisCacheDisabler hateoasObjenesisCacheDisabler() {
+			return new HateoasObjenesisCacheDisabler();
+		}
+
+		@Bean
+		public FileSystemWatcherFactory fileSystemWatcherFactory() {
 			return new FileSystemWatcherFactory() {
 
 				@Override

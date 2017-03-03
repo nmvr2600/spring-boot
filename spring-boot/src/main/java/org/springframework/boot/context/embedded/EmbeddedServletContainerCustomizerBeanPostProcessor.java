@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2014 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,14 +28,14 @@ import org.springframework.context.ApplicationContextAware;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
 
 /**
- * {@link BeanPostProcessor} that apply all {@link EmbeddedServletContainerCustomizer}s
+ * {@link BeanPostProcessor} that applies all {@link EmbeddedServletContainerCustomizer}s
  * from the bean factory to {@link ConfigurableEmbeddedServletContainer} beans.
  *
  * @author Dave Syer
  * @author Phillip Webb
  */
-public class EmbeddedServletContainerCustomizerBeanPostProcessor implements
-		BeanPostProcessor, ApplicationContextAware {
+public class EmbeddedServletContainerCustomizerBeanPostProcessor
+		implements BeanPostProcessor, ApplicationContextAware {
 
 	private ApplicationContext applicationContext;
 
@@ -62,7 +62,8 @@ public class EmbeddedServletContainerCustomizerBeanPostProcessor implements
 		return bean;
 	}
 
-	private void postProcessBeforeInitialization(ConfigurableEmbeddedServletContainer bean) {
+	private void postProcessBeforeInitialization(
+			ConfigurableEmbeddedServletContainer bean) {
 		for (EmbeddedServletContainerCustomizer customizer : getCustomizers()) {
 			customizer.customize(bean);
 		}
@@ -72,8 +73,9 @@ public class EmbeddedServletContainerCustomizerBeanPostProcessor implements
 		if (this.customizers == null) {
 			// Look up does not include the parent context
 			this.customizers = new ArrayList<EmbeddedServletContainerCustomizer>(
-					this.applicationContext.getBeansOfType(
-							EmbeddedServletContainerCustomizer.class, false, false)
+					this.applicationContext
+							.getBeansOfType(EmbeddedServletContainerCustomizer.class,
+									false, false)
 							.values());
 			Collections.sort(this.customizers, AnnotationAwareOrderComparator.INSTANCE);
 			this.customizers = Collections.unmodifiableList(this.customizers);

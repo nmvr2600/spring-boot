@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +19,10 @@ package org.springframework.boot.devtools.restart;
 import java.beans.Introspector;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
@@ -33,6 +31,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.locks.Lock;
@@ -40,6 +39,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+
 import org.springframework.beans.CachedIntrospectionResults;
 import org.springframework.beans.factory.ObjectFactory;
 import org.springframework.boot.SpringApplication;
@@ -48,8 +48,11 @@ import org.springframework.boot.devtools.restart.classloader.ClassLoaderFiles;
 import org.springframework.boot.devtools.restart.classloader.RestartClassLoader;
 import org.springframework.boot.logging.DeferredLog;
 import org.springframework.cglib.core.ClassNameReader;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.support.GenericApplicationContext;
 import org.springframework.core.ResolvableType;
 import org.springframework.core.annotation.AnnotationUtils;
+import org.springframework.core.io.ResourceLoader;
 import org.springframework.util.Assert;
 import org.springframework.util.ReflectionUtils;
 
@@ -71,6 +74,7 @@ import org.springframework.util.ReflectionUtils;
  * URLs or class file updates for remote restart scenarios.
  *
  * @author Phillip Webb
+ * @author Andy Wilkinson
  * @since 1.3.0
  * @see RestartApplicationListener
  * @see #initialize(String[])
@@ -79,9 +83,23 @@ import org.springframework.util.ReflectionUtils;
  */
 public class Restarter {
 
+	private static final Object INSTANCE_MONITOR = new Object();
+
 	private static final String[] NO_ARGS = {};
 
 	private static Restarter instance;
+
+	private final Set<URL> urls = new LinkedHashSet<URL>();
+
+	private final ClassLoaderFiles classLoaderFiles = new ClassLoaderFiles();
+
+	private final Map<String, Object> attributes = new HashMap<String, Object>();
+
+	private final BlockingDeque<LeakSafeThread> leakSafeThreads = new LinkedBlockingDeque<LeakSafeThread>();
+
+	private final Lock stopLock = new ReentrantLock();
+
+	private final Object monitor = new Object();
 
 	private Log logger = new DeferredLog();
 
@@ -99,17 +117,9 @@ public class Restarter {
 
 	private final UncaughtExceptionHandler exceptionHandler;
 
-	private final Set<URL> urls = new LinkedHashSet<URL>();
-
-	private final ClassLoaderFiles classLoaderFiles = new ClassLoaderFiles();
-
-	private final Map<String, Object> attributes = new HashMap<String, Object>();
-
-	private final BlockingDeque<LeakSafeThread> leakSafeThreads = new LinkedBlockingDeque<LeakSafeThread>();
-
 	private boolean finished = false;
 
-	private Lock stopLock = new ReentrantLock();
+	private final List<ConfigurableApplicationContext> rootContexts = new CopyOnWriteArrayList<ConfigurableApplicationContext>();
 
 	/**
 	 * Internal constructor to create a new {@link Restarter} instance.
@@ -204,7 +214,7 @@ public class Restarter {
 	 */
 	public void addUrls(Collection<URL> urls) {
 		Assert.notNull(urls, "Urls must not be null");
-		this.urls.addAll(ChangeableUrls.fromUrls(urls).toList());
+		this.urls.addAll(urls);
 	}
 
 	/**
@@ -265,10 +275,7 @@ public class Restarter {
 				return;
 			}
 			if (failureHandler.handle(error) == Outcome.ABORT) {
-				if (error instanceof Exception) {
-					throw (Exception) error;
-				}
-				throw new Exception(error);
+				return;
 			}
 		}
 		while (true);
@@ -282,8 +289,8 @@ public class Restarter {
 		ClassLoader classLoader = new RestartClassLoader(parent, urls, updatedFiles,
 				this.logger);
 		if (this.logger.isDebugEnabled()) {
-			this.logger.debug("Starting application " + this.mainClassName
-					+ " with URLs " + Arrays.asList(urls));
+			this.logger.debug("Starting application " + this.mainClassName + " with URLs "
+					+ Arrays.asList(urls));
 		}
 		return relaunch(classLoader);
 	}
@@ -310,7 +317,10 @@ public class Restarter {
 		this.logger.debug("Stopping application");
 		this.stopLock.lock();
 		try {
-			triggerShutdownHooks();
+			for (ConfigurableApplicationContext context : this.rootContexts) {
+				context.close();
+				this.rootContexts.remove(context);
+			}
 			cleanupCaches();
 			if (this.forceReferenceCleanup) {
 				forceReferenceCleanup();
@@ -321,17 +331,6 @@ public class Restarter {
 		}
 		System.gc();
 		System.runFinalization();
-	}
-
-	@SuppressWarnings("rawtypes")
-	private void triggerShutdownHooks() throws Exception {
-		Class<?> hooksClass = Class.forName("java.lang.ApplicationShutdownHooks");
-		Method runHooks = hooksClass.getDeclaredMethod("runHooks");
-		runHooks.setAccessible(true);
-		runHooks.invoke(null);
-		Field field = hooksClass.getDeclaredField("hooks");
-		field.setAccessible(true);
-		field.set(null, new IdentityHashMap());
 	}
 
 	private void cleanupCaches() throws Exception {
@@ -374,8 +373,8 @@ public class Restarter {
 			Map<?, ?> map = ((Map<?, ?>) instance);
 			for (Iterator<?> iterator = map.keySet().iterator(); iterator.hasNext();) {
 				Object value = iterator.next();
-				if (value instanceof Class
-						&& ((Class<?>) value).getClassLoader() instanceof RestartClassLoader) {
+				if (value instanceof Class && ((Class<?>) value)
+						.getClassLoader() instanceof RestartClassLoader) {
 					iterator.remove();
 				}
 
@@ -402,15 +401,42 @@ public class Restarter {
 	 * Called to finish {@link Restarter} initialization when application logging is
 	 * available.
 	 */
-	synchronized void finish() {
-		if (!isFinished()) {
-			this.logger = DeferredLog.replay(this.logger, LogFactory.getLog(getClass()));
-			this.finished = true;
+	void finish() {
+		synchronized (this.monitor) {
+			if (!isFinished()) {
+				this.logger = DeferredLog.replay(this.logger,
+						LogFactory.getLog(getClass()));
+				this.finished = true;
+			}
 		}
 	}
 
 	boolean isFinished() {
-		return this.finished;
+		synchronized (this.monitor) {
+			return this.finished;
+		}
+	}
+
+	void prepare(ConfigurableApplicationContext applicationContext) {
+		if (applicationContext != null && applicationContext.getParent() != null) {
+			return;
+		}
+		if (applicationContext instanceof GenericApplicationContext) {
+			prepare((GenericApplicationContext) applicationContext);
+		}
+		this.rootContexts.add(applicationContext);
+	}
+
+	void remove(ConfigurableApplicationContext applicationContext) {
+		if (applicationContext != null) {
+			this.rootContexts.remove(applicationContext);
+		}
+	}
+
+	private void prepare(GenericApplicationContext applicationContext) {
+		ResourceLoader resourceLoader = new ClassLoaderFilesResourcePatternResolver(
+				applicationContext, this.classLoaderFiles);
+		applicationContext.setResourceLoader(resourceLoader);
 	}
 
 	private LeakSafeThread getLeakSafeThread() {
@@ -514,12 +540,16 @@ public class Restarter {
 	 */
 	public static void initialize(String[] args, boolean forceReferenceCleanup,
 			RestartInitializer initializer, boolean restartOnInitialize) {
-		if (instance == null) {
-			synchronized (Restarter.class) {
-				instance = new Restarter(Thread.currentThread(), args,
+		Restarter localInstance = null;
+		synchronized (INSTANCE_MONITOR) {
+			if (instance == null) {
+				localInstance = new Restarter(Thread.currentThread(), args,
 						forceReferenceCleanup, initializer);
+				instance = localInstance;
 			}
-			instance.initialize(restartOnInitialize);
+		}
+		if (localInstance != null) {
+			localInstance.initialize(restartOnInitialize);
 		}
 	}
 
@@ -528,9 +558,11 @@ public class Restarter {
 	 * {@link #initialize(String[]) initialization}.
 	 * @return the restarter
 	 */
-	public synchronized static Restarter getInstance() {
-		Assert.state(instance != null, "Restarter has not been initialized");
-		return instance;
+	public static Restarter getInstance() {
+		synchronized (INSTANCE_MONITOR) {
+			Assert.state(instance != null, "Restarter has not been initialized");
+			return instance;
+		}
 	}
 
 	/**
@@ -538,7 +570,9 @@ public class Restarter {
 	 * @param instance the instance to set
 	 */
 	final static void setInstance(Restarter instance) {
-		Restarter.instance = instance;
+		synchronized (INSTANCE_MONITOR) {
+			Restarter.instance = instance;
+		}
 	}
 
 	/**
@@ -546,7 +580,9 @@ public class Restarter {
 	 * application code.
 	 */
 	public static void clearInstance() {
-		instance = null;
+		synchronized (INSTANCE_MONITOR) {
+			instance = null;
+		}
 	}
 
 	/**

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,20 +31,23 @@ class ExpressionTree extends ReflectionWrapper {
 
 	private final Class<?> literalTreeType = findClass("com.sun.source.tree.LiteralTree");
 
-	private final Method literalValueMethod = findMethod(this.literalTreeType, "getValue");
+	private final Method literalValueMethod = findMethod(this.literalTreeType,
+			"getValue");
 
-	private final Class<?> methodInvocationTreeType = findClass("com.sun.source.tree.MethodInvocationTree");
+	private final Class<?> methodInvocationTreeType = findClass(
+			"com.sun.source.tree.MethodInvocationTree");
 
 	private final Method methodInvocationArgumentsMethod = findMethod(
 			this.methodInvocationTreeType, "getArguments");
 
-	private final Class<?> newArrayTreeType = findClass("com.sun.source.tree.NewArrayTree");
+	private final Class<?> newArrayTreeType = findClass(
+			"com.sun.source.tree.NewArrayTree");
 
 	private final Method arrayValueMethod = findMethod(this.newArrayTreeType,
 			"getInitializers");
 
 	ExpressionTree(Object instance) {
-		super(instance);
+		super("com.sun.source.tree.ExpressionTree", instance);
 	}
 
 	public String getKind() throws Exception {

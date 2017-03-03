@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import javax.sql.DataSource;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.BeanFactoryAware;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.boot.autoconfigure.AutoConfigurationPackages;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -33,7 +33,11 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication.Type;
+import org.springframework.boot.autoconfigure.domain.EntityScanPackages;
+import org.springframework.boot.autoconfigure.transaction.TransactionManagerCustomizers;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.orm.jpa.EntityManagerFactoryBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -56,50 +60,63 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
  * @author Phillip Webb
  * @author Dave Syer
  * @author Oliver Gierke
+ * @author Andy Wilkinson
+ * @author Kazuki Shimizu
+ * @author Eddú Meléndez
  */
 @EnableConfigurationProperties(JpaProperties.class)
 @Import(DataSourceInitializedPublisher.Registrar.class)
 public abstract class JpaBaseConfiguration implements BeanFactoryAware {
 
-	private static final String[] NO_PACKAGES = new String[0];
+	private final DataSource dataSource;
+
+	private final JpaProperties properties;
+
+	private final JtaTransactionManager jtaTransactionManager;
+
+	private final TransactionManagerCustomizers transactionManagerCustomizers;
 
 	private ConfigurableListableBeanFactory beanFactory;
 
-	@Autowired
-	private DataSource dataSource;
-
-	@Autowired(required = false)
-	private PersistenceUnitManager persistenceUnitManager;
-
-	@Autowired
-	private JpaProperties jpaProperties;
-
-	@Autowired(required = false)
-	private JtaTransactionManager jtaTransactionManager;
+	protected JpaBaseConfiguration(DataSource dataSource, JpaProperties properties,
+			ObjectProvider<JtaTransactionManager> jtaTransactionManager,
+			ObjectProvider<TransactionManagerCustomizers> transactionManagerCustomizers) {
+		this.dataSource = dataSource;
+		this.properties = properties;
+		this.jtaTransactionManager = jtaTransactionManager.getIfAvailable();
+		this.transactionManagerCustomizers = transactionManagerCustomizers
+				.getIfAvailable();
+	}
 
 	@Bean
 	@ConditionalOnMissingBean(PlatformTransactionManager.class)
 	public PlatformTransactionManager transactionManager() {
-		return new JpaTransactionManager();
+		JpaTransactionManager transactionManager = new JpaTransactionManager();
+		if (this.transactionManagerCustomizers != null) {
+			this.transactionManagerCustomizers.customize(transactionManager);
+		}
+		return transactionManager;
 	}
 
 	@Bean
 	@ConditionalOnMissingBean
 	public JpaVendorAdapter jpaVendorAdapter() {
 		AbstractJpaVendorAdapter adapter = createJpaVendorAdapter();
-		adapter.setShowSql(this.jpaProperties.isShowSql());
-		adapter.setDatabase(this.jpaProperties.getDatabase());
-		adapter.setDatabasePlatform(this.jpaProperties.getDatabasePlatform());
-		adapter.setGenerateDdl(this.jpaProperties.isGenerateDdl());
+		adapter.setShowSql(this.properties.isShowSql());
+		adapter.setDatabase(this.properties.determineDatabase(this.dataSource));
+		adapter.setDatabasePlatform(this.properties.getDatabasePlatform());
+		adapter.setGenerateDdl(this.properties.isGenerateDdl());
 		return adapter;
 	}
 
 	@Bean
 	@ConditionalOnMissingBean
 	public EntityManagerFactoryBuilder entityManagerFactoryBuilder(
-			JpaVendorAdapter jpaVendorAdapter) {
+			JpaVendorAdapter jpaVendorAdapter,
+			ObjectProvider<PersistenceUnitManager> persistenceUnitManager) {
 		EntityManagerFactoryBuilder builder = new EntityManagerFactoryBuilder(
-				jpaVendorAdapter, this.jpaProperties, this.persistenceUnitManager);
+				jpaVendorAdapter, this.properties.getProperties(),
+				persistenceUnitManager.getIfAvailable());
 		builder.setCallback(getVendorCallback());
 		return builder;
 	}
@@ -133,11 +150,12 @@ public abstract class JpaBaseConfiguration implements BeanFactoryAware {
 	}
 
 	protected String[] getPackagesToScan() {
-		if (AutoConfigurationPackages.has(this.beanFactory)) {
-			List<String> basePackages = AutoConfigurationPackages.get(this.beanFactory);
-			return basePackages.toArray(new String[basePackages.size()]);
+		List<String> packages = EntityScanPackages.get(this.beanFactory)
+				.getPackageNames();
+		if (packages.isEmpty() && AutoConfigurationPackages.has(this.beanFactory)) {
+			packages = AutoConfigurationPackages.get(this.beanFactory);
 		}
-		return NO_PACKAGES;
+		return packages.toArray(new String[packages.size()]);
 	}
 
 	/**
@@ -156,13 +174,29 @@ public abstract class JpaBaseConfiguration implements BeanFactoryAware {
 		return (this.jtaTransactionManager != null);
 	}
 
+	/**
+	 * Return the {@link JpaProperties}.
+	 * @return the properties
+	 */
+	protected final JpaProperties getProperties() {
+		return this.properties;
+	}
+
+	/**
+	 * Return the {@link DataSource}.
+	 * @return the data source
+	 */
+	protected final DataSource getDataSource() {
+		return this.dataSource;
+	}
+
 	@Override
 	public void setBeanFactory(BeanFactory beanFactory) throws BeansException {
 		this.beanFactory = (ConfigurableListableBeanFactory) beanFactory;
 	}
 
 	@Configuration
-	@ConditionalOnWebApplication
+	@ConditionalOnWebApplication(type = Type.SERVLET)
 	@ConditionalOnClass(WebMvcConfigurerAdapter.class)
 	@ConditionalOnMissingBean({ OpenEntityManagerInViewInterceptor.class,
 			OpenEntityManagerInViewFilter.class })

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import java.util.jar.JarFile;
 import org.apache.tools.ant.BuildException;
 import org.apache.tools.ant.Project;
 import org.apache.tools.ant.Task;
+
 import org.springframework.boot.loader.tools.MainClassFinder;
 import org.springframework.util.StringUtils;
 
@@ -33,6 +34,8 @@ import org.springframework.util.StringUtils;
  * @since 1.3.0
  */
 public class FindMainClass extends Task {
+
+	private static final String SPRING_BOOT_APPLICATION_CLASS_NAME = "org.springframework.boot.autoconfigure.SpringBootApplication";
 
 	private String mainClass;
 
@@ -64,15 +67,16 @@ public class FindMainClass extends Task {
 					"one of @mainClass or @classesRoot must be specified");
 		}
 		if (!this.classesRoot.exists()) {
-			throw new BuildException("@classesRoot " + this.classesRoot
-					+ " does not exist");
+			throw new BuildException(
+					"@classesRoot " + this.classesRoot + " does not exist");
 		}
 		try {
 			if (this.classesRoot.isDirectory()) {
-				return MainClassFinder.findSingleMainClass(this.classesRoot);
+				return MainClassFinder.findSingleMainClass(this.classesRoot,
+						SPRING_BOOT_APPLICATION_CLASS_NAME);
 			}
-			return MainClassFinder
-					.findSingleMainClass(new JarFile(this.classesRoot), "/");
+			return MainClassFinder.findSingleMainClass(new JarFile(this.classesRoot), "/",
+					SPRING_BOOT_APPLICATION_CLASS_NAME);
 		}
 		catch (IOException ex) {
 			throw new BuildException(ex);

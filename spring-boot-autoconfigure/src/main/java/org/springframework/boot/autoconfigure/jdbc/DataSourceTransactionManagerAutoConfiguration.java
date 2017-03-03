@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,11 +18,14 @@ package org.springframework.boot.autoconfigure.jdbc;
 
 import javax.sql.DataSource;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.AutoConfigureOrder;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnSingleCandidate;
+import org.springframework.boot.autoconfigure.transaction.TransactionManagerCustomizers;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
@@ -38,29 +41,47 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
  *
  * @author Dave Syer
  * @author Stephane Nicoll
+ * @author Andy Wilkinson
+ * @author Kazuki Shimizu
  */
 @Configuration
 @ConditionalOnClass({ JdbcTemplate.class, PlatformTransactionManager.class })
-public class DataSourceTransactionManagerAutoConfiguration implements Ordered {
+@AutoConfigureOrder(Ordered.LOWEST_PRECEDENCE)
+@EnableConfigurationProperties(DataSourceProperties.class)
+public class DataSourceTransactionManagerAutoConfiguration {
 
-	@Override
-	public int getOrder() {
-		return Integer.MAX_VALUE;
-	}
+	@Configuration
+	@ConditionalOnSingleCandidate(DataSource.class)
+	static class DataSourceTransactionManagerConfiguration {
 
-	@Autowired(required = false)
-	private DataSource dataSource;
+		private final DataSource dataSource;
 
-	@Bean
-	@ConditionalOnMissingBean(PlatformTransactionManager.class)
-	@ConditionalOnBean(DataSource.class)
-	public DataSourceTransactionManager transactionManager() {
-		return new DataSourceTransactionManager(this.dataSource);
+		private final TransactionManagerCustomizers transactionManagerCustomizers;
+
+		DataSourceTransactionManagerConfiguration(DataSource dataSource,
+				ObjectProvider<TransactionManagerCustomizers> transactionManagerCustomizers) {
+			this.dataSource = dataSource;
+			this.transactionManagerCustomizers = transactionManagerCustomizers
+					.getIfAvailable();
+		}
+
+		@Bean
+		@ConditionalOnMissingBean(PlatformTransactionManager.class)
+		public DataSourceTransactionManager transactionManager(
+				DataSourceProperties properties) {
+			DataSourceTransactionManager transactionManager = new DataSourceTransactionManager(
+					this.dataSource);
+			if (this.transactionManagerCustomizers != null) {
+				this.transactionManagerCustomizers.customize(transactionManager);
+			}
+			return transactionManager;
+		}
+
 	}
 
 	@ConditionalOnMissingBean(AbstractTransactionManagementConfiguration.class)
 	@Configuration
-	@EnableTransactionManagement
+	@EnableTransactionManagement(proxyTargetClass = true)
 	protected static class TransactionManagementConfiguration {
 
 	}

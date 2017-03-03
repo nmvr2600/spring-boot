@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,8 @@
 
 package org.springframework.boot.logging.logback;
 
+import java.lang.reflect.Method;
 import java.nio.charset.Charset;
-
-import org.springframework.boot.bind.RelaxedPropertyResolver;
-import org.springframework.boot.logging.LogFile;
-import org.springframework.boot.logging.LoggingInitializationContext;
-import org.springframework.core.env.Environment;
-import org.springframework.core.env.PropertyResolver;
-import org.springframework.core.env.PropertySourcesPropertyResolver;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
@@ -33,7 +27,16 @@ import ch.qos.logback.core.ConsoleAppender;
 import ch.qos.logback.core.rolling.FixedWindowRollingPolicy;
 import ch.qos.logback.core.rolling.RollingFileAppender;
 import ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy;
+import ch.qos.logback.core.util.FileSize;
 import ch.qos.logback.core.util.OptionHelper;
+
+import org.springframework.boot.bind.RelaxedPropertyResolver;
+import org.springframework.boot.logging.LogFile;
+import org.springframework.boot.logging.LoggingInitializationContext;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.PropertyResolver;
+import org.springframework.core.env.PropertySourcesPropertyResolver;
+import org.springframework.util.ReflectionUtils;
 
 /**
  * Default logback configuration used by Spring Boot. Uses {@link LogbackConfigurator} to
@@ -46,12 +49,12 @@ import ch.qos.logback.core.util.OptionHelper;
 class DefaultLogbackConfiguration {
 
 	private static final String CONSOLE_LOG_PATTERN = "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} "
-			+ "%clr(%5p) %clr(${PID:- }){magenta} %clr(---){faint} "
+			+ "%clr(${LOG_LEVEL_PATTERN:-%5p}) %clr(${PID:- }){magenta} %clr(---){faint} "
 			+ "%clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} "
-			+ "%clr(:){faint} %m%n${LOG_EXCEPTION_CONVERSION_WORD:-%rEx}";
+			+ "%clr(:){faint} %m%n${LOG_EXCEPTION_CONVERSION_WORD:-%wEx}";
 
-	private static final String FILE_LOG_PATTERN = "%d{yyyy-MM-dd HH:mm:ss.SSS} %5p "
-			+ "${PID:- } --- [%t] %-40.40logger{39} : %m%n${LOG_EXCEPTION_CONVERSION_WORD:-%rEx}";
+	private static final String FILE_LOG_PATTERN = "%d{yyyy-MM-dd HH:mm:ss.SSS} "
+			+ "${LOG_LEVEL_PATTERN:-%5p} ${PID:- } --- [%t] %-40.40logger{39} : %m%n${LOG_EXCEPTION_CONVERSION_WORD:-%wEx}";
 
 	private static final Charset UTF8 = Charset.forName("UTF-8");
 
@@ -69,7 +72,8 @@ class DefaultLogbackConfiguration {
 		if (environment == null) {
 			return new PropertySourcesPropertyResolver(null);
 		}
-		return new RelaxedPropertyResolver(environment, "logging.pattern.");
+		return RelaxedPropertyResolver.ignoringUnresolvableNestedPlaceholders(environment,
+				"logging.pattern.");
 	}
 
 	public void apply(LogbackConfigurator config) {
@@ -90,25 +94,20 @@ class DefaultLogbackConfiguration {
 	private void base(LogbackConfigurator config) {
 		config.conversionRule("clr", ColorConverter.class);
 		config.conversionRule("wex", WhitespaceThrowableProxyConverter.class);
+		config.conversionRule("wEx", ExtendedWhitespaceThrowableProxyConverter.class);
 		LevelRemappingAppender debugRemapAppender = new LevelRemappingAppender(
 				"org.springframework.boot");
 		config.start(debugRemapAppender);
 		config.appender("DEBUG_LEVEL_REMAPPER", debugRemapAppender);
-		config.logger("", Level.ERROR);
 		config.logger("org.apache.catalina.startup.DigesterFactory", Level.ERROR);
 		config.logger("org.apache.catalina.util.LifecycleBase", Level.ERROR);
 		config.logger("org.apache.coyote.http11.Http11NioProtocol", Level.WARN);
 		config.logger("org.apache.sshd.common.util.SecurityUtils", Level.WARN);
 		config.logger("org.apache.tomcat.util.net.NioSelectorPool", Level.WARN);
-		config.logger("org.crsh.plugin", Level.WARN);
-		config.logger("org.crsh.ssh", Level.WARN);
 		config.logger("org.eclipse.jetty.util.component.AbstractLifeCycle", Level.ERROR);
 		config.logger("org.hibernate.validator.internal.util.Version", Level.WARN);
-		config.logger("org.springframework.boot.actuate.autoconfigure."
-				+ "CrshAutoConfiguration", Level.WARN);
 		config.logger("org.springframework.boot.actuate.endpoint.jmx", null, false,
 				debugRemapAppender);
-		config.logger("org.thymeleaf", null, false, debugRemapAppender);
 	}
 
 	private Appender<ILoggingEvent> consoleAppender(LogbackConfigurator config) {
@@ -131,22 +130,36 @@ class DefaultLogbackConfiguration {
 		encoder.setPattern(OptionHelper.substVars(logPattern, config.getContext()));
 		appender.setEncoder(encoder);
 		config.start(encoder);
-
 		appender.setFile(logFile);
+		setRollingPolicy(appender, config, logFile);
+		setMaxFileSize(appender, config);
+		config.appender("FILE", appender);
+		return appender;
+	}
 
+	private void setRollingPolicy(RollingFileAppender<ILoggingEvent> appender,
+			LogbackConfigurator config, String logFile) {
 		FixedWindowRollingPolicy rollingPolicy = new FixedWindowRollingPolicy();
 		rollingPolicy.setFileNamePattern(logFile + ".%i");
 		appender.setRollingPolicy(rollingPolicy);
 		rollingPolicy.setParent(appender);
 		config.start(rollingPolicy);
+	}
 
+	private void setMaxFileSize(RollingFileAppender<ILoggingEvent> appender,
+			LogbackConfigurator config) {
 		SizeBasedTriggeringPolicy<ILoggingEvent> triggeringPolicy = new SizeBasedTriggeringPolicy<ILoggingEvent>();
-		triggeringPolicy.setMaxFileSize("10MB");
+		try {
+			triggeringPolicy.setMaxFileSize(FileSize.valueOf("10MB"));
+		}
+		catch (NoSuchMethodError ex) {
+			// Logback < 1.1.8 used String configuration
+			Method method = ReflectionUtils.findMethod(SizeBasedTriggeringPolicy.class,
+					"setMaxFileSize", String.class);
+			ReflectionUtils.invokeMethod(method, triggeringPolicy, "10MB");
+		}
 		appender.setTriggeringPolicy(triggeringPolicy);
 		config.start(triggeringPolicy);
-
-		config.appender("FILE", appender);
-		return appender;
 	}
 
 }

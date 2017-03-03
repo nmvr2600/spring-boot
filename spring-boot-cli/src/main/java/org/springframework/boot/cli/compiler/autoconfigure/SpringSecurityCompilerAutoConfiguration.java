@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package org.springframework.boot.cli.compiler.autoconfigure;
 
 import org.codehaus.groovy.ast.ClassNode;
 import org.codehaus.groovy.control.customizers.ImportCustomizer;
+
 import org.springframework.boot.cli.compiler.AstUtils;
 import org.springframework.boot.cli.compiler.CompilerAutoConfiguration;
 import org.springframework.boot.cli.compiler.DependencyCustomizer;
@@ -45,8 +46,7 @@ public class SpringSecurityCompilerAutoConfiguration extends CompilerAutoConfigu
 
 	@Override
 	public void applyImports(ImportCustomizer imports) {
-		imports.addImports(
-				"org.springframework.security.core.Authentication",
+		imports.addImports("org.springframework.security.core.Authentication",
 				"org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity",
 				"org.springframework.security.core.authority.AuthorityUtils")
 				.addStarImports(
@@ -55,4 +55,5 @@ public class SpringSecurityCompilerAutoConfiguration extends CompilerAutoConfigu
 						"org.springframework.security.config.annotation.web",
 						"org.springframework.security.config.annotation.web.builders");
 	}
+
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,19 +18,32 @@ package org.springframework.boot.actuate.autoconfigure;
 
 import java.io.IOException;
 import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import javax.annotation.PostConstruct;
 
+import com.fasterxml.jackson.annotation.JsonAnyGetter;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.annotation.JsonUnwrapped;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlRootElement;
+
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.actuate.endpoint.mvc.ActuatorDocsEndpoint;
-import org.springframework.boot.actuate.endpoint.mvc.ActuatorHalBrowserEndpoint;
-import org.springframework.boot.actuate.endpoint.mvc.ActuatorHalJsonEndpoint;
+import org.springframework.boot.actuate.autoconfigure.EndpointWebMvcHypermediaManagementContextConfiguration.EndpointHypermediaEnabledCondition;
+import org.springframework.boot.actuate.condition.ConditionalOnEnabledEndpoint;
+import org.springframework.boot.actuate.endpoint.mvc.ActuatorMediaTypes;
+import org.springframework.boot.actuate.endpoint.mvc.DocsMvcEndpoint;
+import org.springframework.boot.actuate.endpoint.mvc.HalBrowserMvcEndpoint;
+import org.springframework.boot.actuate.endpoint.mvc.HalJsonMvcEndpoint;
 import org.springframework.boot.actuate.endpoint.mvc.HypermediaDisabled;
 import org.springframework.boot.actuate.endpoint.mvc.ManagementServletContext;
 import org.springframework.boot.actuate.endpoint.mvc.MvcEndpoint;
 import org.springframework.boot.actuate.endpoint.mvc.MvcEndpoints;
+import org.springframework.boot.autoconfigure.condition.AnyNestedCondition;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -39,9 +52,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnResource;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.autoconfigure.web.HttpMessageConverters;
 import org.springframework.boot.autoconfigure.web.ResourceProperties;
-import org.springframework.boot.autoconfigure.web.ServerProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.MethodParameter;
 import org.springframework.core.annotation.AnnotationUtils;
@@ -52,7 +65,9 @@ import org.springframework.hateoas.ResourceSupport;
 import org.springframework.hateoas.UriTemplate;
 import org.springframework.hateoas.hal.CurieProvider;
 import org.springframework.hateoas.hal.DefaultCurieProvider;
+import org.springframework.hateoas.mvc.TypeConstrainedMappingJackson2HttpMessageConverter;
 import org.springframework.http.MediaType;
+import org.springframework.http.converter.AbstractHttpMessageConverter;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.HttpMessageNotWritableException;
 import org.springframework.http.server.ServerHttpRequest;
@@ -61,13 +76,8 @@ import org.springframework.http.server.ServletServerHttpRequest;
 import org.springframework.util.TypeUtils;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.servlet.HandlerMapping;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
-
-import com.fasterxml.jackson.annotation.JsonAnyGetter;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.fasterxml.jackson.annotation.JsonUnwrapped;
-import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlRootElement;
 
 import static org.springframework.hateoas.mvc.ControllerLinkBuilder.linkTo;
 
@@ -81,10 +91,11 @@ import static org.springframework.hateoas.mvc.ControllerLinkBuilder.linkTo;
  */
 @ManagementContextConfiguration
 @ConditionalOnClass(Link.class)
-@ConditionalOnWebApplication
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @ConditionalOnBean(HttpMessageConverters.class)
-@ConditionalOnProperty(value = "endpoints.enabled", matchIfMissing = true)
-@EnableConfigurationProperties(ResourceProperties.class)
+@Conditional(EndpointHypermediaEnabledCondition.class)
+@EnableConfigurationProperties({ ResourceProperties.class,
+		ManagementServerProperties.class })
 public class EndpointWebMvcHypermediaManagementContextConfiguration {
 
 	@Bean
@@ -100,43 +111,38 @@ public class EndpointWebMvcHypermediaManagementContextConfiguration {
 		};
 	}
 
-	@ConditionalOnProperty(prefix = "endpoints.actuator", name = "enabled", matchIfMissing = true)
+	@ConditionalOnEnabledEndpoint("actuator")
 	@Bean
-	public ActuatorHalJsonEndpoint actuatorMvcEndpoint(
+	public HalJsonMvcEndpoint halJsonMvcEndpoint(
 			ManagementServletContext managementServletContext,
 			ResourceProperties resources, ResourceLoader resourceLoader) {
-		if (ActuatorHalBrowserEndpoint.getHalBrowserLocation(resourceLoader) != null) {
-			return new ActuatorHalBrowserEndpoint(managementServletContext);
+		if (HalBrowserMvcEndpoint.getHalBrowserLocation(resourceLoader) != null) {
+			return new HalBrowserMvcEndpoint(managementServletContext);
 		}
-		return new ActuatorHalJsonEndpoint(managementServletContext);
+		return new HalJsonMvcEndpoint(managementServletContext);
 	}
 
 	@Bean
-	@ConditionalOnProperty(prefix = "endpoints.docs", name = "enabled", matchIfMissing = true)
-	@ConditionalOnResource(resources = "classpath:/META-INF/resources/spring-boot-actuator/docs/index.html")
-	public ActuatorDocsEndpoint actuatorDocsEndpoint(
-			ManagementServletContext managementServletContext) {
-		return new ActuatorDocsEndpoint(managementServletContext);
-	}
-
-	@Bean
-	@ConditionalOnBean(ActuatorDocsEndpoint.class)
+	@ConditionalOnBean(DocsMvcEndpoint.class)
 	@ConditionalOnMissingBean(CurieProvider.class)
 	@ConditionalOnProperty(prefix = "endpoints.docs.curies", name = "enabled", matchIfMissing = false)
-	public DefaultCurieProvider curieProvider(ServerProperties server,
-			ManagementServerProperties management, ActuatorDocsEndpoint endpoint) {
+	public DefaultCurieProvider curieProvider(
+			ManagementServerProperties management, DocsMvcEndpoint endpoint) {
 		String path = management.getContextPath() + endpoint.getPath()
 				+ "/#spring_boot_actuator__{rel}";
-		if (server.getPort() == management.getPort() && management.getPort() != null
-				&& management.getPort() != 0) {
-			path = server.getPath(path);
-		}
 		return new DefaultCurieProvider("boot", new UriTemplate(path));
 	}
 
-	@ConditionalOnProperty(prefix = "endpoints.actuator", name = "enabled", matchIfMissing = true)
 	@Configuration
-	static class ActuatorMvcEndpointConfiguration {
+	static class DocsMvcEndpointConfiguration {
+
+		@Bean
+		@ConditionalOnEnabledEndpoint("docs")
+		@ConditionalOnResource(resources = "classpath:/META-INF/resources/spring-boot-actuator/docs/index.html")
+		public DocsMvcEndpoint docsMvcEndpoint(
+				ManagementServletContext managementServletContext) {
+			return new DocsMvcEndpoint(managementServletContext);
+		}
 
 	}
 
@@ -144,13 +150,14 @@ public class EndpointWebMvcHypermediaManagementContextConfiguration {
 	 * Controller advice that adds links to the actuator endpoint's path.
 	 */
 	@ControllerAdvice
-	public static class ActuatorEndpointLinksAdvice implements ResponseBodyAdvice<Object> {
+	public static class ActuatorEndpointLinksAdvice
+			implements ResponseBodyAdvice<Object> {
 
 		@Autowired
 		private MvcEndpoints endpoints;
 
 		@Autowired(required = false)
-		private ActuatorHalJsonEndpoint actuatorEndpoint;
+		private HalJsonMvcEndpoint halJsonMvcEndpoint;
 
 		@Autowired
 		private ManagementServerProperties management;
@@ -185,8 +192,8 @@ public class EndpointWebMvcHypermediaManagementContextConfiguration {
 		}
 
 		private void beforeBodyWrite(Object body, ServletServerHttpRequest request) {
-			Object pattern = request.getServletRequest().getAttribute(
-					HandlerMapping.PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE);
+			Object pattern = request.getServletRequest()
+					.getAttribute(HandlerMapping.PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE);
 			if (pattern != null && body instanceof ResourceSupport) {
 				beforeBodyWrite(pattern.toString(), (ResourceSupport) body);
 			}
@@ -194,15 +201,18 @@ public class EndpointWebMvcHypermediaManagementContextConfiguration {
 
 		private void beforeBodyWrite(String path, ResourceSupport body) {
 			if (isActuatorEndpointPath(path)) {
-				this.linksEnhancer
-						.addEndpointLinks(body, this.actuatorEndpoint.getPath());
+				this.linksEnhancer.addEndpointLinks(body,
+						this.halJsonMvcEndpoint.getPath());
 			}
 		}
 
 		private boolean isActuatorEndpointPath(String path) {
-			return this.actuatorEndpoint != null
-					&& (this.management.getContextPath() + this.actuatorEndpoint
-							.getPath()).equals(path);
+			if (this.halJsonMvcEndpoint != null) {
+				String toMatch = this.management.getContextPath()
+						+ this.halJsonMvcEndpoint.getPath();
+				return toMatch.equals(path) || (toMatch + "/").equals(path);
+			}
+			return false;
 		}
 
 	}
@@ -211,23 +221,46 @@ public class EndpointWebMvcHypermediaManagementContextConfiguration {
 	 * Controller advice that adds links to the existing Actuator endpoints. By default
 	 * all the top-level resources are enhanced with a "self" link. Those resources that
 	 * could not be enhanced (e.g. "/env/{name}") because their values are "primitive" are
-	 * ignored. Those that have values of type Collection (e.g. /trace) are transformed in
-	 * to maps, and the original collection value is added with a key equal to the
-	 * endpoint name.
+	 * ignored.
 	 */
+	@ConditionalOnProperty(prefix = "endpoints.hypermedia", name = "enabled", matchIfMissing = false)
 	@ControllerAdvice(assignableTypes = MvcEndpoint.class)
-	public static class MvcEndpointAdvice implements ResponseBodyAdvice<Object> {
+	static class MvcEndpointAdvice implements ResponseBodyAdvice<Object> {
 
-		@Autowired
-		private HttpMessageConverters converters;
+		private final List<RequestMappingHandlerAdapter> handlerAdapters;
 
-		private Map<MediaType, HttpMessageConverter<?>> converterCache = new ConcurrentHashMap<MediaType, HttpMessageConverter<?>>();
+		private final Map<MediaType, HttpMessageConverter<?>> converterCache = new ConcurrentHashMap<MediaType, HttpMessageConverter<?>>();
+
+		MvcEndpointAdvice(List<RequestMappingHandlerAdapter> handlerAdapters) {
+			this.handlerAdapters = handlerAdapters;
+		}
+
+		@PostConstruct
+		public void configureHttpMessageConverters() {
+			for (RequestMappingHandlerAdapter handlerAdapter : this.handlerAdapters) {
+				for (HttpMessageConverter<?> messageConverter : handlerAdapter
+						.getMessageConverters()) {
+					configureHttpMessageConverter(messageConverter);
+				}
+			}
+		}
+
+		private void configureHttpMessageConverter(
+				HttpMessageConverter<?> messageConverter) {
+			if (messageConverter instanceof TypeConstrainedMappingJackson2HttpMessageConverter) {
+				List<MediaType> supportedMediaTypes = new ArrayList<MediaType>(
+						messageConverter.getSupportedMediaTypes());
+				supportedMediaTypes.add(ActuatorMediaTypes.APPLICATION_ACTUATOR_V1_JSON);
+				((AbstractHttpMessageConverter<?>) messageConverter)
+						.setSupportedMediaTypes(supportedMediaTypes);
+			}
+		}
 
 		@Override
 		public boolean supports(MethodParameter returnType,
 				Class<? extends HttpMessageConverter<?>> converterType) {
 			Class<?> controllerType = returnType.getDeclaringClass();
-			return !ActuatorHalJsonEndpoint.class.isAssignableFrom(controllerType);
+			return !HalJsonMvcEndpoint.class.isAssignableFrom(controllerType);
 		}
 
 		@Override
@@ -251,6 +284,10 @@ public class EndpointWebMvcHypermediaManagementContextConfiguration {
 				// Assume it already was handled or it already has its links
 				return body;
 			}
+			if (body instanceof Collection || body.getClass().isArray()) {
+				// We can't add links to a collection without wrapping it
+				return body;
+			}
 			HttpMessageConverter<Object> converter = findConverter(selectedConverterType,
 					selectedContentType);
 			if (converter == null || isHypermediaDisabled(returnType)) {
@@ -272,14 +309,19 @@ public class EndpointWebMvcHypermediaManagementContextConfiguration {
 		private HttpMessageConverter<Object> findConverter(
 				Class<? extends HttpMessageConverter<?>> selectedConverterType,
 				MediaType mediaType) {
-			if (this.converterCache.containsKey(mediaType)) {
-				return (HttpMessageConverter<Object>) this.converterCache.get(mediaType);
+			HttpMessageConverter<Object> cached = (HttpMessageConverter<Object>) this.converterCache
+					.get(mediaType);
+			if (cached != null) {
+				return cached;
 			}
-			for (HttpMessageConverter<?> converter : this.converters) {
-				if (selectedConverterType.isAssignableFrom(converter.getClass())
-						&& converter.canWrite(EndpointResource.class, mediaType)) {
-					this.converterCache.put(mediaType, converter);
-					return (HttpMessageConverter<Object>) converter;
+			for (RequestMappingHandlerAdapter handlerAdapter : this.handlerAdapters) {
+				for (HttpMessageConverter<?> converter : handlerAdapter
+						.getMessageConverters()) {
+					if (selectedConverterType.isAssignableFrom(converter.getClass())
+							&& converter.canWrite(EndpointResource.class, mediaType)) {
+						this.converterCache.put(mediaType, converter);
+						return (HttpMessageConverter<Object>) converter;
+					}
 				}
 			}
 			return null;
@@ -288,13 +330,14 @@ public class EndpointWebMvcHypermediaManagementContextConfiguration {
 		private boolean isHypermediaDisabled(MethodParameter returnType) {
 			return AnnotationUtils.findAnnotation(returnType.getMethod(),
 					HypermediaDisabled.class) != null
-					|| AnnotationUtils.findAnnotation(returnType.getMethod()
-							.getDeclaringClass(), HypermediaDisabled.class) != null;
+					|| AnnotationUtils.findAnnotation(
+							returnType.getMethod().getDeclaringClass(),
+							HypermediaDisabled.class) != null;
 		}
 
 		private String getPath(ServletServerHttpRequest request) {
-			String path = (String) request.getServletRequest().getAttribute(
-					HandlerMapping.PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE);
+			String path = (String) request.getServletRequest()
+					.getAttribute(HandlerMapping.PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE);
 			return (path == null ? "" : path);
 		}
 
@@ -323,6 +366,24 @@ public class EndpointWebMvcHypermediaManagementContextConfiguration {
 		@JsonAnyGetter
 		public Map<String, Object> getEmbedded() {
 			return this.embedded;
+		}
+
+	}
+
+	static class EndpointHypermediaEnabledCondition extends AnyNestedCondition {
+
+		EndpointHypermediaEnabledCondition() {
+			super(ConfigurationPhase.REGISTER_BEAN);
+		}
+
+		@ConditionalOnEnabledEndpoint("actuator")
+		static class ActuatorEndpointEnabled {
+
+		}
+
+		@ConditionalOnEnabledEndpoint("docs")
+		static class DocsEndpointEnabled {
+
 		}
 
 	}

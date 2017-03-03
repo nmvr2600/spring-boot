@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,10 +16,14 @@
 
 package org.springframework.boot.actuate.autoconfigure;
 
+import com.codahale.metrics.MetricRegistry;
+
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.actuate.endpoint.MetricReaderPublicMetrics;
 import org.springframework.boot.actuate.metrics.CounterService;
 import org.springframework.boot.actuate.metrics.GaugeService;
 import org.springframework.boot.actuate.metrics.dropwizard.DropwizardMetricServices;
+import org.springframework.boot.actuate.metrics.dropwizard.ReservoirFactory;
 import org.springframework.boot.actuate.metrics.reader.MetricRegistryMetricReader;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -27,8 +31,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
-import com.codahale.metrics.MetricRegistry;
 
 /**
  * {@link EnableAutoConfiguration Auto-configuration} for Dropwizard-based metrics.
@@ -41,6 +43,13 @@ import com.codahale.metrics.MetricRegistry;
 @AutoConfigureBefore(MetricRepositoryAutoConfiguration.class)
 public class MetricsDropwizardAutoConfiguration {
 
+	private final ReservoirFactory reservoirFactory;
+
+	public MetricsDropwizardAutoConfiguration(
+			ObjectProvider<ReservoirFactory> reservoirFactory) {
+		this.reservoirFactory = reservoirFactory.getIfAvailable();
+	}
+
 	@Bean
 	@ConditionalOnMissingBean
 	public MetricRegistry metricRegistry() {
@@ -50,13 +59,21 @@ public class MetricsDropwizardAutoConfiguration {
 	@Bean
 	@ConditionalOnMissingBean({ DropwizardMetricServices.class, CounterService.class,
 			GaugeService.class })
-	public DropwizardMetricServices dropwizardMetricServices(MetricRegistry metricRegistry) {
-		return new DropwizardMetricServices(metricRegistry);
+	public DropwizardMetricServices dropwizardMetricServices(
+			MetricRegistry metricRegistry) {
+		if (this.reservoirFactory == null) {
+			return new DropwizardMetricServices(metricRegistry);
+		}
+		else {
+			return new DropwizardMetricServices(metricRegistry, this.reservoirFactory);
+		}
 	}
 
 	@Bean
-	public MetricReaderPublicMetrics dropwizardPublicMetrics(MetricRegistry metricRegistry) {
-		MetricRegistryMetricReader reader = new MetricRegistryMetricReader(metricRegistry);
+	public MetricReaderPublicMetrics dropwizardPublicMetrics(
+			MetricRegistry metricRegistry) {
+		MetricRegistryMetricReader reader = new MetricRegistryMetricReader(
+				metricRegistry);
 		return new MetricReaderPublicMetrics(reader);
 	}
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2013 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,13 +18,13 @@ package org.springframework.boot.cli.command.options;
 
 import java.util.List;
 
+import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
+
 import org.springframework.boot.cli.compiler.GroovyCompilerConfiguration;
 import org.springframework.boot.cli.compiler.GroovyCompilerScope;
 import org.springframework.boot.cli.compiler.RepositoryConfigurationFactory;
 import org.springframework.boot.cli.compiler.grape.RepositoryConfiguration;
-
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
 
 /**
  * Simple adapter class to present an {@link OptionSet} as a
@@ -42,8 +42,8 @@ public class OptionSetGroovyCompilerConfiguration implements GroovyCompilerConfi
 
 	protected OptionSetGroovyCompilerConfiguration(OptionSet optionSet,
 			CompilerOptionHandler compilerOptionHandler) {
-		this(optionSet, compilerOptionHandler, RepositoryConfigurationFactory
-				.createDefaultRepositoryConfiguration());
+		this(optionSet, compilerOptionHandler,
+				RepositoryConfigurationFactory.createDefaultRepositoryConfiguration());
 	}
 
 	public OptionSetGroovyCompilerConfiguration(OptionSet optionSet,
@@ -91,4 +91,5 @@ public class OptionSetGroovyCompilerConfiguration implements GroovyCompilerConfi
 	public List<RepositoryConfiguration> getRepositoryConfiguration() {
 		return this.repositoryConfiguration;
 	}
+
 }

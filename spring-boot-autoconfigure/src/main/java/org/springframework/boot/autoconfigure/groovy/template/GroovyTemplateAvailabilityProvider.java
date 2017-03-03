@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2014 the original author or authors.
+ * Copyright 2012-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,9 @@
 package org.springframework.boot.autoconfigure.groovy.template;
 
 import org.springframework.boot.autoconfigure.template.TemplateAvailabilityProvider;
+import org.springframework.boot.bind.RelaxedPropertyResolver;
 import org.springframework.core.env.Environment;
+import org.springframework.core.env.PropertyResolver;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.util.ClassUtils;
 
@@ -34,11 +36,16 @@ public class GroovyTemplateAvailabilityProvider implements TemplateAvailabilityP
 	public boolean isTemplateAvailable(String view, Environment environment,
 			ClassLoader classLoader, ResourceLoader resourceLoader) {
 		if (ClassUtils.isPresent("groovy.text.TemplateEngine", classLoader)) {
-			String prefix = environment.getProperty("spring.groovy.template.prefix",
+			PropertyResolver resolver = new RelaxedPropertyResolver(environment,
+					"spring.groovy.template.");
+			String loaderPath = resolver.getProperty("resource-loader-path",
+					GroovyTemplateProperties.DEFAULT_RESOURCE_LOADER_PATH);
+			String prefix = resolver.getProperty("prefix",
 					GroovyTemplateProperties.DEFAULT_PREFIX);
-			String suffix = environment.getProperty("spring.groovy.template.suffix",
+			String suffix = resolver.getProperty("suffix",
 					GroovyTemplateProperties.DEFAULT_SUFFIX);
-			return resourceLoader.getResource(prefix + view + suffix).exists();
+			return resourceLoader.getResource(loaderPath + prefix + view + suffix)
+					.exists();
 		}
 		return false;
 	}

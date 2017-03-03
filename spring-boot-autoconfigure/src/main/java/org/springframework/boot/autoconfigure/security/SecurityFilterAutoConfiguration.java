@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,18 +16,24 @@
 
 package org.springframework.boot.autoconfigure.security;
 
-import javax.servlet.Filter;
+import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.Set;
 
-import org.springframework.beans.factory.annotation.Qualifier;
+import javax.servlet.DispatcherType;
+
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
-import org.springframework.boot.context.embedded.FilterRegistrationBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication.Type;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.web.servlet.DelegatingFilterProxyRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfiguration;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.context.AbstractSecurityWebApplicationInitializer;
 
 /**
@@ -37,25 +43,41 @@ import org.springframework.security.web.context.AbstractSecurityWebApplicationIn
  * {@link WebSecurityConfiguration} exists.
  *
  * @author Rob Winch
+ * @author Phillip Webb
+ * @author Andy Wilkinson
  * @since 1.3
  */
 @Configuration
-@ConditionalOnWebApplication
-@EnableConfigurationProperties
-@AutoConfigureAfter(SpringBootWebSecurityConfiguration.class)
+@ConditionalOnWebApplication(type = Type.SERVLET)
+@EnableConfigurationProperties(SecurityProperties.class)
+@ConditionalOnClass({ AbstractSecurityWebApplicationInitializer.class,
+		SessionCreationPolicy.class })
+@AutoConfigureAfter(SecurityAutoConfiguration.class)
 public class SecurityFilterAutoConfiguration {
 
 	private static final String DEFAULT_FILTER_NAME = AbstractSecurityWebApplicationInitializer.DEFAULT_FILTER_NAME;
 
 	@Bean
 	@ConditionalOnBean(name = DEFAULT_FILTER_NAME)
-	public FilterRegistrationBean securityFilterChainRegistration(
-			@Qualifier(DEFAULT_FILTER_NAME) Filter securityFilter,
+	public DelegatingFilterProxyRegistrationBean securityFilterChainRegistration(
 			SecurityProperties securityProperties) {
-		FilterRegistrationBean registration = new FilterRegistrationBean(securityFilter);
+		DelegatingFilterProxyRegistrationBean registration = new DelegatingFilterProxyRegistrationBean(
+				DEFAULT_FILTER_NAME);
 		registration.setOrder(securityProperties.getFilterOrder());
-		registration.setName(DEFAULT_FILTER_NAME);
+		registration.setDispatcherTypes(getDispatcherTypes(securityProperties));
 		return registration;
+	}
+
+	private EnumSet<DispatcherType> getDispatcherTypes(
+			SecurityProperties securityProperties) {
+		if (securityProperties.getFilterDispatcherTypes() == null) {
+			return null;
+		}
+		Set<DispatcherType> dispatcherTypes = new HashSet<DispatcherType>();
+		for (String dispatcherType : securityProperties.getFilterDispatcherTypes()) {
+			dispatcherTypes.add(DispatcherType.valueOf(dispatcherType));
+		}
+		return EnumSet.copyOf(dispatcherTypes);
 	}
 
 }

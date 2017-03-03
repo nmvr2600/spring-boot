@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,10 +17,6 @@
 package org.springframework.boot.actuate.endpoint.mvc;
 
 import org.springframework.boot.actuate.endpoint.Endpoint;
-import org.springframework.http.ResponseEntity;
-import org.springframework.util.Assert;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 /**
@@ -29,57 +25,21 @@ import org.springframework.web.bind.annotation.ResponseBody;
  * @author Dave Syer
  * @author Andy Wilkinson
  */
-public class EndpointMvcAdapter implements MvcEndpoint {
-
-	private final Endpoint<?> delegate;
+public class EndpointMvcAdapter extends AbstractEndpointMvcAdapter<Endpoint<?>> {
 
 	/**
 	 * Create a new {@link EndpointMvcAdapter}.
 	 * @param delegate the underlying {@link Endpoint} to adapt.
 	 */
 	public EndpointMvcAdapter(Endpoint<?> delegate) {
-		Assert.notNull(delegate, "Delegate must not be null");
-		this.delegate = delegate;
+		super(delegate);
 	}
 
-	@RequestMapping(method = RequestMethod.GET)
+	@Override
+	@ActuatorGetMapping
 	@ResponseBody
 	public Object invoke() {
-		if (!this.delegate.isEnabled()) {
-			// Shouldn't happen - shouldn't be registered when delegate's disabled
-			return getDisabledResponse();
-		}
-		return this.delegate.invoke();
-	}
-
-	public Endpoint<?> getDelegate() {
-		return this.delegate;
-	}
-
-	@Override
-	public String getPath() {
-		return "/" + this.delegate.getId();
-	}
-
-	@Override
-	public boolean isSensitive() {
-		return this.delegate.isSensitive();
-	}
-
-	@Override
-	@SuppressWarnings("rawtypes")
-	public Class<? extends Endpoint> getEndpointType() {
-		return this.delegate.getClass();
-	}
-
-	/**
-	 * Returns the response that should be returned when the endpoint is disabled.
-	 * @return The response to be returned when the endpoint is disabled
-	 * @since 1.2.4
-	 * @see Endpoint#isEnabled()
-	 */
-	protected ResponseEntity<?> getDisabledResponse() {
-		return MvcEndpoint.DISABLED_RESPONSE;
+		return super.invoke();
 	}
 
 }

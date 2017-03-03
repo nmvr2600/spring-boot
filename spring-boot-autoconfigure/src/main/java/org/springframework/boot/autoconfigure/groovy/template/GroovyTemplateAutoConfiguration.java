@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,12 +22,17 @@ import java.security.ProtectionDomain;
 import javax.annotation.PostConstruct;
 import javax.servlet.Servlet;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import groovy.text.markup.MarkupTemplateEngine;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication.Type;
 import org.springframework.boot.autoconfigure.template.TemplateLocation;
 import org.springframework.boot.autoconfigure.web.WebMvcAutoConfiguration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -36,16 +41,13 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.i18n.LocaleContextHolder;
-import org.springframework.util.Assert;
 import org.springframework.web.servlet.view.UrlBasedViewResolver;
 import org.springframework.web.servlet.view.groovy.GroovyMarkupConfig;
 import org.springframework.web.servlet.view.groovy.GroovyMarkupConfigurer;
 import org.springframework.web.servlet.view.groovy.GroovyMarkupViewResolver;
 
-import groovy.text.markup.MarkupTemplateEngine;
-
 /**
- * Autoconfiguration support for Groovy templates in MVC. By default creates a
+ * Auto-configuration support for Groovy templates in MVC. By default creates a
  * {@link MarkupTemplateEngine} configured from {@link GroovyTemplateProperties}, but you
  * can override that by providing your own {@link GroovyMarkupConfig} or even a
  * {@link MarkupTemplateEngine} of a different type.
@@ -61,29 +63,38 @@ import groovy.text.markup.MarkupTemplateEngine;
 @EnableConfigurationProperties(GroovyTemplateProperties.class)
 public class GroovyTemplateAutoConfiguration {
 
+	private static final Log logger = LogFactory
+			.getLog(GroovyTemplateAutoConfiguration.class);
+
 	@Configuration
 	@ConditionalOnClass(GroovyMarkupConfigurer.class)
 	public static class GroovyMarkupConfiguration {
 
-		@Autowired
-		private ApplicationContext applicationContext;
+		private final ApplicationContext applicationContext;
 
-		@Autowired
-		private GroovyTemplateProperties properties;
+		private final GroovyTemplateProperties properties;
 
-		@Autowired(required = false)
-		private MarkupTemplateEngine templateEngine;
+		private final MarkupTemplateEngine templateEngine;
+
+		public GroovyMarkupConfiguration(ApplicationContext applicationContext,
+				GroovyTemplateProperties properties,
+				ObjectProvider<MarkupTemplateEngine> templateEngine) {
+			this.applicationContext = applicationContext;
+			this.properties = properties;
+			this.templateEngine = templateEngine.getIfAvailable();
+		}
 
 		@PostConstruct
 		public void checkTemplateLocationExists() {
 			if (this.properties.isCheckTemplateLocation() && !isUsingGroovyAllJar()) {
 				TemplateLocation location = new TemplateLocation(
 						this.properties.getResourceLoaderPath());
-				Assert.state(location.exists(this.applicationContext),
-						"Cannot find template location: " + location
-								+ " (please add some templates, check your Groovy "
-								+ "configuration, or set spring.groovy.template."
-								+ "check-template-location=false)");
+				if (!location.exists(this.applicationContext)) {
+					logger.warn("Cannot find template location: " + location
+							+ " (please add some templates, check your Groovy "
+							+ "configuration, or set spring.groovy.template."
+							+ "check-template-location=false)");
+				}
 			}
 		}
 
@@ -128,12 +139,15 @@ public class GroovyTemplateAutoConfiguration {
 	@Configuration
 	@ConditionalOnClass({ Servlet.class, LocaleContextHolder.class,
 			UrlBasedViewResolver.class })
-	@ConditionalOnWebApplication
+	@ConditionalOnWebApplication(type = Type.SERVLET)
 	@ConditionalOnProperty(name = "spring.groovy.template.enabled", matchIfMissing = true)
 	public static class GroovyWebConfiguration {
 
-		@Autowired
-		private GroovyTemplateProperties properties;
+		private final GroovyTemplateProperties properties;
+
+		public GroovyWebConfiguration(GroovyTemplateProperties properties) {
+			this.properties = properties;
+		}
 
 		@Bean
 		@ConditionalOnMissingBean(name = "groovyMarkupViewResolver")

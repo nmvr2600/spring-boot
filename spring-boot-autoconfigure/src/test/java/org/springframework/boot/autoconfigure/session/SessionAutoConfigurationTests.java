@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,75 +16,140 @@
 
 package org.springframework.boot.autoconfigure.session;
 
-import org.junit.After;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumSet;
+
+import javax.servlet.DispatcherType;
+
 import org.junit.Rule;
 import org.junit.Test;
-import org.springframework.boot.autoconfigure.PropertyPlaceholderAutoConfiguration;
-import org.springframework.boot.autoconfigure.redis.RedisAutoConfiguration;
-import org.springframework.boot.autoconfigure.web.ServerProperties;
-import org.springframework.boot.autoconfigure.web.ServerPropertiesAutoConfiguration;
-import org.springframework.boot.context.embedded.AnnotationConfigEmbeddedWebApplicationContext;
-import org.springframework.boot.context.embedded.EmbeddedServletContainerFactory;
-import org.springframework.boot.context.embedded.MockEmbeddedServletContainerFactory;
-import org.springframework.boot.redis.RedisTestServer;
-import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.junit.rules.ExpectedException;
+
+import org.springframework.beans.DirectFieldAccessor;
+import org.springframework.beans.factory.BeanCreationException;
+import org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration;
+import org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration;
+import org.springframework.boot.autoconfigure.mongo.embedded.EmbeddedMongoAutoConfiguration;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.session.ExpiringSession;
+import org.springframework.session.MapSessionRepository;
+import org.springframework.session.SessionRepository;
+import org.springframework.session.data.mongo.MongoOperationsSessionRepository;
+import org.springframework.session.web.http.SessionRepositoryFilter;
+import org.springframework.test.util.ReflectionTestUtils;
 
-import static org.junit.Assert.assertNotNull;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Tests for {@link SessionAutoConfiguration}.
  *
  * @author Dave Syer
- * @since 1.3.0
+ * @author Eddú Meléndez
+ * @author Stephane Nicoll
  */
-public class SessionAutoConfigurationTests {
+public class SessionAutoConfigurationTests extends AbstractSessionAutoConfigurationTests {
 
 	@Rule
-	public RedisTestServer redis = new RedisTestServer();
+	public ExpectedException thrown = ExpectedException.none();
 
-	private AnnotationConfigEmbeddedWebApplicationContext context;
-
-	@After
-	public void close() {
-		if (this.context != null) {
-			this.context.close();
-		}
+	@Test
+	public void contextFailsIfStoreTypeNotSet() {
+		this.thrown.expect(BeanCreationException.class);
+		this.thrown.expectMessage("No session repository could be auto-configured");
+		this.thrown.expectMessage("session store type is 'null'");
+		load();
 	}
 
 	@Test
-	public void flat() throws Exception {
-		this.context = new AnnotationConfigEmbeddedWebApplicationContext();
-		this.context.register(Config.class, ServerPropertiesAutoConfiguration.class,
-				RedisAutoConfiguration.class, SessionAutoConfiguration.class,
-				PropertyPlaceholderAutoConfiguration.class);
-		this.context.refresh();
-		ServerProperties server = this.context.getBean(ServerProperties.class);
-		assertNotNull(server);
+	public void autoConfigurationDisabledIfStoreTypeSetToNone() {
+		load("spring.session.store-type=none");
+		assertThat(this.context.getBeansOfType(SessionRepository.class)).hasSize(0);
 	}
 
 	@Test
-	public void hierarchy() throws Exception {
-		AnnotationConfigApplicationContext parent = new AnnotationConfigApplicationContext();
-		parent.register(RedisAutoConfiguration.class, SessionAutoConfiguration.class,
-				PropertyPlaceholderAutoConfiguration.class);
-		parent.refresh();
-		this.context = new AnnotationConfigEmbeddedWebApplicationContext();
-		this.context.setParent(parent);
-		this.context.register(Config.class, ServerPropertiesAutoConfiguration.class,
-				PropertyPlaceholderAutoConfiguration.class);
-		this.context.refresh();
-		ServerProperties server = this.context.getBean(ServerProperties.class);
-		assertNotNull(server);
+	public void backOffIfSessionRepositoryIsPresent() {
+		load(Collections.<Class<?>>singletonList(SessionRepositoryConfiguration.class),
+				"spring.session.store-type=mongo");
+		MapSessionRepository repository = validateSessionRepository(
+				MapSessionRepository.class);
+		assertThat(this.context.getBean("mySessionRepository")).isSameAs(repository);
+	}
+
+	@Test
+	public void hashMapSessionStore() {
+		load("spring.session.store-type=hash-map");
+		MapSessionRepository repository = validateSessionRepository(
+				MapSessionRepository.class);
+		assertThat(getSessionTimeout(repository)).isNull();
+	}
+
+	@Test
+	public void hashMapSessionStoreCustomTimeout() {
+		load("spring.session.store-type=hash-map", "server.session.timeout=3000");
+		MapSessionRepository repository = validateSessionRepository(
+				MapSessionRepository.class);
+		assertThat(getSessionTimeout(repository)).isEqualTo(3000);
+	}
+
+	@Test
+	public void springSessionTimeoutIsNotAValidProperty() {
+		load("spring.session.store-type=hash-map", "spring.session.timeout=3000");
+		MapSessionRepository repository = validateSessionRepository(
+				MapSessionRepository.class);
+		assertThat(getSessionTimeout(repository)).isNull();
+	}
+
+	@Test
+	public void mongoSessionStore() {
+		load(Arrays.asList(EmbeddedMongoAutoConfiguration.class,
+				MongoAutoConfiguration.class, MongoDataAutoConfiguration.class),
+				"spring.session.store-type=mongo");
+		validateSessionRepository(MongoOperationsSessionRepository.class);
+	}
+
+	@Test
+	public void mongoSessionStoreWithCustomizations() {
+		load(Arrays.asList(EmbeddedMongoAutoConfiguration.class,
+				MongoAutoConfiguration.class, MongoDataAutoConfiguration.class),
+				"spring.session.store-type=mongo",
+				"spring.session.mongo.collection-name=foobar");
+		MongoOperationsSessionRepository repository = validateSessionRepository(
+				MongoOperationsSessionRepository.class);
+		assertThat(new DirectFieldAccessor(repository).getPropertyValue("collectionName"))
+				.isEqualTo("foobar");
+	}
+
+	@Test
+	public void validationFailsIfSessionRepositoryIsNotConfigured() {
+		this.thrown.expect(BeanCreationException.class);
+		this.thrown.expectMessage("No session repository could be auto-configured");
+		this.thrown.expectMessage("session store type is 'JDBC'");
+		load("spring.session.store-type=jdbc");
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void filterIsRegisteredWithAsyncErrorAndRequestDispatcherTypes() {
+		load("spring.session.store-type=hash-map");
+		FilterRegistrationBean<?> registration = this.context
+				.getBean(FilterRegistrationBean.class);
+		assertThat(registration.getFilter())
+				.isSameAs(this.context.getBean(SessionRepositoryFilter.class));
+		assertThat((EnumSet<DispatcherType>) ReflectionTestUtils.getField(registration,
+				"dispatcherTypes")).containsOnly(DispatcherType.ASYNC,
+						DispatcherType.ERROR, DispatcherType.REQUEST);
 	}
 
 	@Configuration
-	protected static class Config {
+	static class SessionRepositoryConfiguration {
 
 		@Bean
-		public EmbeddedServletContainerFactory containerFactory() {
-			return new MockEmbeddedServletContainerFactory();
+		public SessionRepository<?> mySessionRepository() {
+			return new MapSessionRepository(
+					Collections.<String, ExpiringSession>emptyMap());
 		}
 
 	}

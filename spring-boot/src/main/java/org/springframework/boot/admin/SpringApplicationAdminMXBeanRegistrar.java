@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import javax.management.ObjectName;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
@@ -43,11 +44,12 @@ import org.springframework.util.Assert;
  * {@link MBeanServer}.
  *
  * @author Stephane Nicoll
+ * @author Andy Wilkinson
  * @since 1.3.0
  */
-public class SpringApplicationAdminMXBeanRegistrar implements ApplicationContextAware,
-		EnvironmentAware, InitializingBean, DisposableBean,
-		ApplicationListener<ApplicationReadyEvent> {
+public class SpringApplicationAdminMXBeanRegistrar
+		implements ApplicationContextAware, EnvironmentAware, InitializingBean,
+		DisposableBean, ApplicationListener<ApplicationReadyEvent> {
 
 	private static final Log logger = LogFactory.getLog(SpringApplicationAdmin.class);
 
@@ -79,7 +81,9 @@ public class SpringApplicationAdminMXBeanRegistrar implements ApplicationContext
 
 	@Override
 	public void onApplicationEvent(ApplicationReadyEvent event) {
-		this.ready = true;
+		if (this.applicationContext.equals(event.getApplicationContext())) {
+			this.ready = true;
+		}
 	}
 
 	@Override
@@ -106,7 +110,8 @@ public class SpringApplicationAdminMXBeanRegistrar implements ApplicationContext
 
 		@Override
 		public boolean isEmbeddedWebApplication() {
-			return (SpringApplicationAdminMXBeanRegistrar.this.applicationContext != null && SpringApplicationAdminMXBeanRegistrar.this.applicationContext instanceof EmbeddedWebApplicationContext);
+			return (SpringApplicationAdminMXBeanRegistrar.this.applicationContext != null
+					&& SpringApplicationAdminMXBeanRegistrar.this.applicationContext instanceof EmbeddedWebApplicationContext);
 		}
 
 		@Override
@@ -120,6 +125,7 @@ public class SpringApplicationAdminMXBeanRegistrar implements ApplicationContext
 			logger.info("Application shutdown requested.");
 			SpringApplicationAdminMXBeanRegistrar.this.applicationContext.close();
 		}
+
 	}
 
 }

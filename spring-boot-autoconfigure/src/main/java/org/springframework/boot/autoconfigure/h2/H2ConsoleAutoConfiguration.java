@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package org.springframework.boot.autoconfigure.h2;
 
 import org.h2.server.web.WebServlet;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -24,11 +25,12 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication.Type;
 import org.springframework.boot.autoconfigure.security.SecurityAuthorizeMode;
 import org.springframework.boot.autoconfigure.security.SecurityAutoConfiguration;
 import org.springframework.boot.autoconfigure.security.SecurityProperties;
-import org.springframework.boot.context.embedded.ServletRegistrationBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.web.servlet.ServletRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -40,29 +42,44 @@ import org.springframework.security.config.annotation.web.configuration.WebSecur
  * {@link EnableAutoConfiguration Auto-configuration} for H2's web console.
  *
  * @author Andy Wilkinson
+ * @author Marten Deinum
+ * @author Stephane Nicoll
  * @since 1.3.0
  */
 @Configuration
-@ConditionalOnWebApplication
+@ConditionalOnWebApplication(type = Type.SERVLET)
 @ConditionalOnClass(WebServlet.class)
 @ConditionalOnProperty(prefix = "spring.h2.console", name = "enabled", havingValue = "true", matchIfMissing = false)
 @EnableConfigurationProperties(H2ConsoleProperties.class)
 @AutoConfigureAfter(SecurityAutoConfiguration.class)
 public class H2ConsoleAutoConfiguration {
 
-	@Autowired
-	private H2ConsoleProperties properties;
+	private final H2ConsoleProperties properties;
+
+	public H2ConsoleAutoConfiguration(H2ConsoleProperties properties) {
+		this.properties = properties;
+	}
 
 	@Bean
-	public ServletRegistrationBean h2Console() {
+	public ServletRegistrationBean<WebServlet> h2Console() {
 		String path = this.properties.getPath();
 		String urlMapping = (path.endsWith("/") ? path + "*" : path + "/*");
-		return new ServletRegistrationBean(new WebServlet(), urlMapping);
+		ServletRegistrationBean<WebServlet> registration = new ServletRegistrationBean<WebServlet>(
+				new WebServlet(), urlMapping);
+		H2ConsoleProperties.Settings settings = this.properties.getSettings();
+		if (settings.isTrace()) {
+			registration.addInitParameter("trace", "");
+		}
+		if (settings.isWebAllowOthers()) {
+			registration.addInitParameter("webAllowOthers", "");
+		}
+		return registration;
 	}
 
 	@Configuration
 	@ConditionalOnClass(WebSecurityConfigurerAdapter.class)
 	@ConditionalOnBean(ObjectPostProcessor.class)
+	@EnableConfigurationProperties(SecurityProperties.class)
 	@ConditionalOnProperty(prefix = "security.basic", name = "enabled", matchIfMissing = true)
 	static class H2ConsoleSecurityConfiguration {
 
@@ -72,8 +89,8 @@ public class H2ConsoleAutoConfiguration {
 		}
 
 		@Order(SecurityProperties.BASIC_AUTH_ORDER - 10)
-		private static class H2ConsoleSecurityConfigurer extends
-				WebSecurityConfigurerAdapter {
+		private static class H2ConsoleSecurityConfigurer
+				extends WebSecurityConfigurerAdapter {
 
 			@Autowired
 			private H2ConsoleProperties console;

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,14 +23,15 @@ import org.apache.commons.logging.LogFactory;
 import org.jooq.ExecuteContext;
 import org.jooq.SQLDialect;
 import org.jooq.impl.DefaultExecuteListener;
+
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.support.SQLErrorCodeSQLExceptionTranslator;
 import org.springframework.jdbc.support.SQLExceptionTranslator;
 import org.springframework.jdbc.support.SQLStateSQLExceptionTranslator;
 
 /**
- * Transforms {@link java.sql.SQLException} into a Spring-specific @{link
- * DataAccessException}.
+ * Transforms {@link java.sql.SQLException} into a Spring-specific
+ * {@link DataAccessException}.
  *
  * @author Lukas Eder
  * @author Andreas Ahlenstorf
@@ -56,16 +57,17 @@ class JooqExceptionTranslator extends DefaultExecuteListener {
 
 	private SQLExceptionTranslator getTranslator(ExecuteContext context) {
 		SQLDialect dialect = context.configuration().dialect();
-		if (dialect != null) {
-			return new SQLErrorCodeSQLExceptionTranslator(dialect.name());
+		if (dialect != null && dialect.thirdParty() != null) {
+			return new SQLErrorCodeSQLExceptionTranslator(
+					dialect.thirdParty().springDbName());
 		}
 		return new SQLStateSQLExceptionTranslator();
 	}
 
 	/**
 	 * Handle a single exception in the chain. SQLExceptions might be nested multiple
-	 * levels deep. The outermost exception is usually the least interesting one
-	 * ("Call getNextException to see the cause."). Therefore the innermost exception is
+	 * levels deep. The outermost exception is usually the least interesting one ("Call
+	 * getNextException to see the cause."). Therefore the innermost exception is
 	 * propagated and all other exceptions are logged.
 	 * @param context the execute context
 	 * @param translator the exception translator

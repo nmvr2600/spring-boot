@@ -30,9 +30,9 @@ import javax.cache.spi.CachingProvider;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -44,7 +44,7 @@ import static org.mockito.Mockito.mock;
 public class MockCachingProvider implements CachingProvider {
 
 	@Override
-	@SuppressWarnings({ "rawtypes", "unchecked" })
+	@SuppressWarnings("rawtypes")
 	public CacheManager getCacheManager(URI uri, ClassLoader classLoader,
 			Properties properties) {
 		CacheManager cacheManager = mock(CacheManager.class);
@@ -59,8 +59,8 @@ public class MockCachingProvider implements CachingProvider {
 				return caches.get(cacheName);
 			}
 		});
-		given(cacheManager.createCache(anyString(), any(Configuration.class))).will(
-				new Answer<Cache>() {
+		given(cacheManager.createCache(anyString(), any(Configuration.class)))
+				.will(new Answer<Cache>() {
 					@Override
 					public Cache answer(InvocationOnMock invocationOnMock)
 							throws Throwable {

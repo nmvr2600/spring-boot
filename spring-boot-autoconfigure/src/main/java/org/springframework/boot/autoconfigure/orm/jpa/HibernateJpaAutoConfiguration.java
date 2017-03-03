@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package org.springframework.boot.autoconfigure.orm.jpa;
 
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -24,14 +25,18 @@ import javax.sql.DataSource;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionMessage;
+import org.springframework.boot.autoconfigure.condition.ConditionMessage.Style;
 import org.springframework.boot.autoconfigure.condition.ConditionOutcome;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.SpringBootCondition;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration.HibernateEntityManagerCondition;
+import org.springframework.boot.autoconfigure.transaction.TransactionManagerCustomizers;
 import org.springframework.boot.orm.jpa.hibernate.SpringJtaPlatform;
 import org.springframework.context.annotation.ConditionContext;
 import org.springframework.context.annotation.Conditional;
@@ -53,6 +58,7 @@ import org.springframework.util.ClassUtils;
  * @author Phillip Webb
  * @author Josh Long
  * @author Manuel Doninger
+ * @author Andy Wilkinson
  */
 @Configuration
 @ConditionalOnClass({ LocalContainerEntityManagerFactoryBean.class,
@@ -77,15 +83,17 @@ public class HibernateJpaAutoConfiguration extends JpaBaseConfiguration {
 	 * {@code WebSphereExtendedJtaPlatform} implementations for various Hibernate
 	 * versions.
 	 */
-	private static final String[] WEBSHERE_JTA_PLATFORM_CLASSES = {
+	private static final String[] WEBSPHERE_JTA_PLATFORM_CLASSES = {
 			"org.hibernate.engine.transaction.jta.platform.internal.WebSphereExtendedJtaPlatform",
 			"org.hibernate.service.jta.platform.internal.WebSphereExtendedJtaPlatform", };
 
-	@Autowired
-	private JpaProperties properties;
-
-	@Autowired
-	private DataSource dataSource;
+	public HibernateJpaAutoConfiguration(DataSource dataSource,
+			JpaProperties jpaProperties,
+			ObjectProvider<JtaTransactionManager> jtaTransactionManager,
+			ObjectProvider<TransactionManagerCustomizers> transactionManagerCustomizers) {
+		super(dataSource, jpaProperties, jtaTransactionManager,
+				transactionManagerCustomizers);
+	}
 
 	@Override
 	protected AbstractJpaVendorAdapter createJpaVendorAdapter() {
@@ -95,7 +103,7 @@ public class HibernateJpaAutoConfiguration extends JpaBaseConfiguration {
 	@Override
 	protected Map<String, Object> getVendorProperties() {
 		Map<String, Object> vendorProperties = new LinkedHashMap<String, Object>();
-		vendorProperties.putAll(this.properties.getHibernateProperties(this.dataSource));
+		vendorProperties.putAll(getProperties().getHibernateProperties(getDataSource()));
 		return vendorProperties;
 	}
 
@@ -113,7 +121,7 @@ public class HibernateJpaAutoConfiguration extends JpaBaseConfiguration {
 		if (jtaTransactionManager != null) {
 			if (runningOnWebSphere()) {
 				// We can never use SpringJtaPlatform on WebSphere as
-				// WebSphereUowTransactionManger has a null TransactionManager
+				// WebSphereUowTransactionManager has a null TransactionManager
 				// which will cause Hibernate to NPE
 				configureWebSphereTransactionPlatform(vendorProperties);
 			}
@@ -127,8 +135,9 @@ public class HibernateJpaAutoConfiguration extends JpaBaseConfiguration {
 	}
 
 	private boolean runningOnWebSphere() {
-		return ClassUtils.isPresent("com.ibm.websphere.jtaextensions."
-				+ "ExtendedJTATransaction", getClass().getClassLoader());
+		return ClassUtils.isPresent(
+				"com.ibm.websphere.jtaextensions." + "ExtendedJTATransaction",
+				getClass().getClassLoader());
 	}
 
 	private void configureWebSphereTransactionPlatform(
@@ -137,14 +146,14 @@ public class HibernateJpaAutoConfiguration extends JpaBaseConfiguration {
 	}
 
 	private Object getWebSphereJtaPlatformManager() {
-		return getJtaPlatformManager(WEBSHERE_JTA_PLATFORM_CLASSES);
+		return getJtaPlatformManager(WEBSPHERE_JTA_PLATFORM_CLASSES);
 	}
 
 	private void configureSpringJtaPlatform(Map<String, Object> vendorProperties,
 			JtaTransactionManager jtaTransactionManager) {
 		try {
-			vendorProperties.put(JTA_PLATFORM, new SpringJtaPlatform(
-					jtaTransactionManager));
+			vendorProperties.put(JTA_PLATFORM,
+					new SpringJtaPlatform(jtaTransactionManager));
 		}
 		catch (LinkageError ex) {
 			// NoClassDefFoundError can happen if Hibernate 4.2 is used and some
@@ -196,13 +205,18 @@ public class HibernateJpaAutoConfiguration extends JpaBaseConfiguration {
 		@Override
 		public ConditionOutcome getMatchOutcome(ConditionContext context,
 				AnnotatedTypeMetadata metadata) {
+			ConditionMessage.Builder message = ConditionMessage
+					.forCondition("HibernateEntityManager");
 			for (String className : CLASS_NAMES) {
 				if (ClassUtils.isPresent(className, context.getClassLoader())) {
-					return ConditionOutcome.match("found HibernateEntityManager class");
+					return ConditionOutcome
+							.match(message.found("class").items(Style.QUOTE, className));
 				}
 			}
-			return ConditionOutcome.noMatch("did not find HibernateEntityManager class");
+			return ConditionOutcome.noMatch(message.didNotFind("class", "classes")
+					.items(Style.QUOTE, Arrays.asList(CLASS_NAMES)));
 		}
+
 	}
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package org.springframework.boot.actuate.endpoint.mvc;
 
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -26,14 +27,15 @@ import java.util.regex.Pattern;
  * must provide implementations of {@link #getValue(Object, String)} and
  * {@link #getNames(Object, NameCallback)}.
  *
- * @param <T> The source data type
+ * @param <T> the source data type
  * @author Phillip Webb
  * @author Sergei Egorov
+ * @author Andy Wilkinson
  * @since 1.3.0
  */
 abstract class NamePatternFilter<T> {
 
-	private static final String[] REGEX_PARTS = { "*", "$", "^", "+" };
+	private static final String[] REGEX_PARTS = { "*", "$", "^", "+", "[" };
 
 	private final T source;
 
@@ -41,9 +43,12 @@ abstract class NamePatternFilter<T> {
 		this.source = source;
 	}
 
-	public Object getResults(String name) {
+	public Map<String, Object> getResults(String name) {
 		if (!isRegex(name)) {
-			return getValue(this.source, name);
+			Object value = getValue(this.source, name);
+			Map<String, Object> result = new HashMap<String, Object>();
+			result.put(name, value);
+			return result;
 		}
 		Pattern pattern = Pattern.compile(name);
 		ResultCollectingNameCallback resultCollector = new ResultCollectingNameCallback(
@@ -66,10 +71,12 @@ abstract class NamePatternFilter<T> {
 
 	protected abstract Object getValue(T source, String name);
 
+	protected abstract Object getOptionalValue(T source, String name);
+
 	/**
 	 * Callback used to add a name.
 	 */
-	protected interface NameCallback {
+	interface NameCallback {
 
 		void addName(String name);
 
@@ -91,7 +98,10 @@ abstract class NamePatternFilter<T> {
 		@Override
 		public void addName(String name) {
 			if (this.pattern.matcher(name).matches()) {
-				this.results.put(name, getValue(NamePatternFilter.this.source, name));
+				Object value = getOptionalValue(NamePatternFilter.this.source, name);
+				if (value != null) {
+					this.results.put(name, value);
+				}
 			}
 		}
 

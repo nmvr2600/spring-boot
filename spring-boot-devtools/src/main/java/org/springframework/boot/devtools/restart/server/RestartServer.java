@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,12 +20,14 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Map.Entry;
 import java.util.Set;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+
 import org.springframework.boot.devtools.restart.Restarter;
 import org.springframework.boot.devtools.restart.classloader.ClassLoaderFile;
 import org.springframework.boot.devtools.restart.classloader.ClassLoaderFile.Kind;
@@ -93,10 +95,10 @@ public class RestartServer {
 		}
 		updateTimeStamp(urls);
 		restart(urls, files);
-
 	}
 
-	private boolean updateFileSystem(URL url, String name, ClassLoaderFile classLoaderFile) {
+	private boolean updateFileSystem(URL url, String name,
+			ClassLoaderFile classLoaderFile) {
 		if (!isFolderUrl(url.toString())) {
 			return false;
 		}
@@ -140,9 +142,7 @@ public class RestartServer {
 		ClassLoader classLoader = this.classLoader;
 		while (classLoader != null) {
 			if (classLoader instanceof URLClassLoader) {
-				for (URL url : ((URLClassLoader) classLoader).getURLs()) {
-					urls.add(url);
-				}
+				Collections.addAll(urls, ((URLClassLoader) classLoader).getURLs());
 			}
 			classLoader = classLoader.getParent();
 		}

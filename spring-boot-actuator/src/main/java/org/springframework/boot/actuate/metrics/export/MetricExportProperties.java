@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,9 +29,10 @@ import org.springframework.util.PatternMatchUtils;
  * Configuration properties for metrics export.
  *
  * @author Dave Syer
+ * @author Simon Buettner
  * @since 1.3.0
  */
-@ConfigurationProperties("spring.metrics.export")
+@ConfigurationProperties(prefix = "spring.metrics.export")
 public class MetricExportProperties extends TriggerProperties {
 
 	/**
@@ -42,6 +43,8 @@ public class MetricExportProperties extends TriggerProperties {
 	private Aggregate aggregate = new Aggregate();
 
 	private Redis redis = new Redis();
+
+	private Statsd statsd = new Statsd();
 
 	@PostConstruct
 	public void setUpDefaults() {
@@ -79,10 +82,6 @@ public class MetricExportProperties extends TriggerProperties {
 		return this.triggers;
 	}
 
-	public Redis getRedis() {
-		return this.redis;
-	}
-
 	public Aggregate getAggregate() {
 		return this.aggregate;
 	}
@@ -91,8 +90,20 @@ public class MetricExportProperties extends TriggerProperties {
 		this.aggregate = aggregate;
 	}
 
+	public Redis getRedis() {
+		return this.redis;
+	}
+
 	public void setRedis(Redis redis) {
 		this.redis = redis;
+	}
+
+	public Statsd getStatsd() {
+		return this.statsd;
+	}
+
+	public void setStatsd(Statsd statsd) {
+		this.statsd = statsd;
 	}
 
 	/**
@@ -201,6 +212,52 @@ public class MetricExportProperties extends TriggerProperties {
 				return this.prefix.substring(this.prefix.indexOf(".") + 1);
 			}
 			return this.prefix;
+		}
+
+	}
+
+	/**
+	 * Statsd properties.
+	 */
+	public static class Statsd {
+
+		/**
+		 * Host of a statsd server to receive exported metrics.
+		 */
+		private String host;
+
+		/**
+		 * Port of a statsd server to receive exported metrics.
+		 */
+		private int port = 8125;
+
+		/**
+		 * Prefix for statsd exported metrics.
+		 */
+		private String prefix;
+
+		public String getHost() {
+			return this.host;
+		}
+
+		public void setHost(String host) {
+			this.host = host;
+		}
+
+		public int getPort() {
+			return this.port;
+		}
+
+		public void setPort(int port) {
+			this.port = port;
+		}
+
+		public String getPrefix() {
+			return this.prefix;
+		}
+
+		public void setPrefix(String prefix) {
+			this.prefix = prefix;
 		}
 
 	}

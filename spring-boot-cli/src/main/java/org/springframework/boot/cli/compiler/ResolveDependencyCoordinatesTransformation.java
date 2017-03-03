@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,14 +22,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import groovy.lang.Grab;
 import org.codehaus.groovy.ast.AnnotationNode;
 import org.codehaus.groovy.ast.expr.ConstantExpression;
 import org.codehaus.groovy.ast.expr.Expression;
 import org.codehaus.groovy.transform.ASTTransformation;
+
 import org.springframework.boot.cli.compiler.grape.DependencyResolutionContext;
 import org.springframework.core.annotation.Order;
-
-import groovy.lang.Grab;
 
 /**
  * {@link ASTTransformation} to resolve {@link Grab} artifact coordinates.
@@ -38,8 +38,8 @@ import groovy.lang.Grab;
  * @author Phillip Webb
  */
 @Order(ResolveDependencyCoordinatesTransformation.ORDER)
-public class ResolveDependencyCoordinatesTransformation extends
-		AnnotatedNodeASTTransformation {
+public class ResolveDependencyCoordinatesTransformation
+		extends AnnotatedNodeASTTransformation {
 
 	/**
 	 * The order of the transformation.
@@ -47,8 +47,8 @@ public class ResolveDependencyCoordinatesTransformation extends
 	public static final int ORDER = DependencyManagementBomTransformation.ORDER + 300;
 
 	private static final Set<String> GRAB_ANNOTATION_NAMES = Collections
-			.unmodifiableSet(new HashSet<String>(Arrays.asList(Grab.class.getName(),
-					Grab.class.getSimpleName())));
+			.unmodifiableSet(new HashSet<String>(
+					Arrays.asList(Grab.class.getName(), Grab.class.getSimpleName())));
 
 	private final DependencyResolutionContext resolutionContext;
 
@@ -108,4 +108,5 @@ public class ResolveDependencyCoordinatesTransformation extends
 		ConstantExpression expression = new ConstantExpression(value);
 		annotation.setMember(name, expression);
 	}
+
 }

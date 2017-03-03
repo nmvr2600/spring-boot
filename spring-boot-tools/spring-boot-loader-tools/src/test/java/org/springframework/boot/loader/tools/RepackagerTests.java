@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package org.springframework.boot.loader.tools;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -32,18 +33,16 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
+import org.zeroturnaround.zip.ZipUtil;
+
 import org.springframework.boot.loader.tools.sample.ClassWithMainMethod;
 import org.springframework.boot.loader.tools.sample.ClassWithoutMainMethod;
 import org.springframework.util.FileCopyUtils;
-import org.zeroturnaround.zip.ZipUtil;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.startsWith;
-import static org.junit.Assert.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -61,7 +60,9 @@ public class RepackagerTests {
 	};
 
 	private static final long JAN_1_1980;
+
 	private static final long JAN_1_1985;
+
 	static {
 		Calendar calendar = Calendar.getInstance();
 		calendar.set(1980, 0, 1, 0, 0, 0);
@@ -110,18 +111,17 @@ public class RepackagerTests {
 		repackager.setMainClass("a.b.C");
 		repackager.repackage(NO_LIBRARIES);
 		Manifest actualManifest = getManifest(file);
-		assertThat(actualManifest.getMainAttributes().getValue("Main-Class"),
-				equalTo("org.springframework.boot.loader.JarLauncher"));
-		assertThat(actualManifest.getMainAttributes().getValue("Start-Class"),
-				equalTo("a.b.C"));
-		assertThat(hasLauncherClasses(file), equalTo(true));
+		assertThat(actualManifest.getMainAttributes().getValue("Main-Class"))
+				.isEqualTo("org.springframework.boot.loader.JarLauncher");
+		assertThat(actualManifest.getMainAttributes().getValue("Start-Class"))
+				.isEqualTo("a.b.C");
+		assertThat(hasLauncherClasses(file)).isTrue();
 	}
 
 	@Test
 	public void mainClassFromManifest() throws Exception {
 		this.testJarFile.addClass("a/b/C.class", ClassWithoutMainMethod.class);
 		Manifest manifest = new Manifest();
-		manifest = new Manifest();
 		manifest.getMainAttributes().putValue("Manifest-Version", "1.0");
 		manifest.getMainAttributes().putValue("Main-Class", "a.b.C");
 		this.testJarFile.addManifest(manifest);
@@ -129,11 +129,11 @@ public class RepackagerTests {
 		Repackager repackager = new Repackager(file);
 		repackager.repackage(NO_LIBRARIES);
 		Manifest actualManifest = getManifest(file);
-		assertThat(actualManifest.getMainAttributes().getValue("Main-Class"),
-				equalTo("org.springframework.boot.loader.JarLauncher"));
-		assertThat(actualManifest.getMainAttributes().getValue("Start-Class"),
-				equalTo("a.b.C"));
-		assertThat(hasLauncherClasses(file), equalTo(true));
+		assertThat(actualManifest.getMainAttributes().getValue("Main-Class"))
+				.isEqualTo("org.springframework.boot.loader.JarLauncher");
+		assertThat(actualManifest.getMainAttributes().getValue("Start-Class"))
+				.isEqualTo("a.b.C");
+		assertThat(hasLauncherClasses(file)).isTrue();
 	}
 
 	@Test
@@ -143,11 +143,11 @@ public class RepackagerTests {
 		Repackager repackager = new Repackager(file);
 		repackager.repackage(NO_LIBRARIES);
 		Manifest actualManifest = getManifest(file);
-		assertThat(actualManifest.getMainAttributes().getValue("Main-Class"),
-				equalTo("org.springframework.boot.loader.JarLauncher"));
-		assertThat(actualManifest.getMainAttributes().getValue("Start-Class"),
-				equalTo("a.b.C"));
-		assertThat(hasLauncherClasses(file), equalTo(true));
+		assertThat(actualManifest.getMainAttributes().getValue("Main-Class"))
+				.isEqualTo("org.springframework.boot.loader.JarLauncher");
+		assertThat(actualManifest.getMainAttributes().getValue("Start-Class"))
+				.isEqualTo("a.b.C");
+		assertThat(hasLauncherClasses(file)).isTrue();
 	}
 
 	@Test
@@ -158,11 +158,11 @@ public class RepackagerTests {
 		repackager.repackage(NO_LIBRARIES);
 		repackager.repackage(NO_LIBRARIES);
 		Manifest actualManifest = getManifest(file);
-		assertThat(actualManifest.getMainAttributes().getValue("Main-Class"),
-				equalTo("org.springframework.boot.loader.JarLauncher"));
-		assertThat(actualManifest.getMainAttributes().getValue("Start-Class"),
-				equalTo("a.b.C"));
-		assertThat(hasLauncherClasses(file), equalTo(true));
+		assertThat(actualManifest.getMainAttributes().getValue("Main-Class"))
+				.isEqualTo("org.springframework.boot.loader.JarLauncher");
+		assertThat(actualManifest.getMainAttributes().getValue("Start-Class"))
+				.isEqualTo("a.b.C");
+		assertThat(hasLauncherClasses(file)).isTrue();
 	}
 
 	@Test
@@ -193,9 +193,9 @@ public class RepackagerTests {
 		repackager.setLayout(new Layouts.None());
 		repackager.repackage(file, NO_LIBRARIES);
 		Manifest actualManifest = getManifest(file);
-		assertThat(actualManifest.getMainAttributes().getValue("Main-Class"),
-				equalTo("a.b.C"));
-		assertThat(hasLauncherClasses(file), equalTo(false));
+		assertThat(actualManifest.getMainAttributes().getValue("Main-Class"))
+				.isEqualTo("a.b.C");
+		assertThat(hasLauncherClasses(file)).isFalse();
 	}
 
 	@Test
@@ -206,9 +206,9 @@ public class RepackagerTests {
 		repackager.setLayout(new Layouts.None());
 		repackager.repackage(file, NO_LIBRARIES);
 		Manifest actualManifest = getManifest(file);
-		assertThat(actualManifest.getMainAttributes().getValue("Main-Class"),
-				equalTo(null));
-		assertThat(hasLauncherClasses(file), equalTo(false));
+		assertThat(actualManifest.getMainAttributes().getValue("Main-Class"))
+				.isEqualTo(null);
+		assertThat(hasLauncherClasses(file)).isFalse();
 	}
 
 	@Test
@@ -217,9 +217,8 @@ public class RepackagerTests {
 		File file = this.testJarFile.getFile();
 		Repackager repackager = new Repackager(file);
 		repackager.repackage(NO_LIBRARIES);
-		assertThat(new File(file.getParent(), file.getName() + ".original").exists(),
-				equalTo(true));
-		assertThat(hasLauncherClasses(file), equalTo(true));
+		assertThat(new File(file.getParent(), file.getName() + ".original")).exists();
+		assertThat(hasLauncherClasses(file)).isTrue();
 	}
 
 	@Test
@@ -229,9 +228,9 @@ public class RepackagerTests {
 		Repackager repackager = new Repackager(file);
 		repackager.setBackupSource(false);
 		repackager.repackage(NO_LIBRARIES);
-		assertThat(new File(file.getParent(), file.getName() + ".original").exists(),
-				equalTo(false));
-		assertThat(hasLauncherClasses(file), equalTo(true));
+		assertThat(new File(file.getParent(), file.getName() + ".original"))
+				.doesNotExist();
+		assertThat(hasLauncherClasses(file)).isTrue();
 	}
 
 	@Test
@@ -241,10 +240,10 @@ public class RepackagerTests {
 		File dest = this.temporaryFolder.newFile("different.jar");
 		Repackager repackager = new Repackager(source);
 		repackager.repackage(dest, NO_LIBRARIES);
-		assertThat(new File(source.getParent(), source.getName() + ".original").exists(),
-				equalTo(false));
-		assertThat(hasLauncherClasses(source), equalTo(false));
-		assertThat(hasLauncherClasses(dest), equalTo(true));
+		assertThat(new File(source.getParent(), source.getName() + ".original"))
+				.doesNotExist();
+		assertThat(hasLauncherClasses(source)).isFalse();
+		assertThat(hasLauncherClasses(dest)).isTrue();
 	}
 
 	@Test
@@ -272,7 +271,7 @@ public class RepackagerTests {
 		File dest = this.temporaryFolder.newFile("dest.jar");
 		dest.createNewFile();
 		repackager.repackage(dest, NO_LIBRARIES);
-		assertThat(hasLauncherClasses(dest), equalTo(true));
+		assertThat(hasLauncherClasses(dest)).isTrue();
 	}
 
 	@Test
@@ -294,7 +293,7 @@ public class RepackagerTests {
 		final File libNonJarFile = this.temporaryFolder.newFile();
 		FileCopyUtils.copy(new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8 }, libNonJarFile);
 		this.testJarFile.addClass("a/b/C.class", ClassWithMainMethod.class);
-		this.testJarFile.addFile("lib/" + libJarFileToUnpack.getName(),
+		this.testJarFile.addFile("BOOT-INF/lib/" + libJarFileToUnpack.getName(),
 				libJarFileToUnpack);
 		File file = this.testJarFile.getFile();
 		libJarFile.setLastModified(JAN_1_1980);
@@ -303,19 +302,20 @@ public class RepackagerTests {
 			@Override
 			public void doWithLibraries(LibraryCallback callback) throws IOException {
 				callback.library(new Library(libJarFile, LibraryScope.COMPILE));
-				callback.library(new Library(libJarFileToUnpack, LibraryScope.COMPILE,
-						true));
+				callback.library(
+						new Library(libJarFileToUnpack, LibraryScope.COMPILE, true));
 				callback.library(new Library(libNonJarFile, LibraryScope.COMPILE));
 			}
 		});
-		assertThat(hasEntry(file, "lib/" + libJarFile.getName()), equalTo(true));
-		assertThat(hasEntry(file, "lib/" + libJarFileToUnpack.getName()), equalTo(true));
-		assertThat(hasEntry(file, "lib/" + libNonJarFile.getName()), equalTo(false));
-		JarEntry entry = getEntry(file, "lib/" + libJarFile.getName());
-		assertThat(entry.getTime(), equalTo(JAN_1_1985));
-		entry = getEntry(file, "lib/" + libJarFileToUnpack.getName());
-		assertThat(entry.getComment(), startsWith("UNPACK:"));
-		assertThat(entry.getComment().length(), equalTo(47));
+		assertThat(hasEntry(file, "BOOT-INF/lib/" + libJarFile.getName())).isTrue();
+		assertThat(hasEntry(file, "BOOT-INF/lib/" + libJarFileToUnpack.getName()))
+				.isTrue();
+		assertThat(hasEntry(file, "BOOT-INF/lib/" + libNonJarFile.getName())).isFalse();
+		JarEntry entry = getEntry(file, "BOOT-INF/lib/" + libJarFile.getName());
+		assertThat(entry.getTime()).isEqualTo(JAN_1_1985);
+		entry = getEntry(file, "BOOT-INF/lib/" + libJarFileToUnpack.getName());
+		assertThat(entry.getComment()).startsWith("UNPACK:");
+		assertThat(entry.getComment().length()).isEqualTo(47);
 	}
 
 	@Test
@@ -349,16 +349,48 @@ public class RepackagerTests {
 		final LibraryScope scope = mock(LibraryScope.class);
 		given(layout.getLauncherClassName()).willReturn("testLauncher");
 		given(layout.getLibraryDestination(anyString(), eq(scope))).willReturn("test/");
+		given(layout.getLibraryDestination(anyString(), eq(LibraryScope.COMPILE)))
+				.willReturn("test-lib/");
 		repackager.setLayout(layout);
 		repackager.repackage(new Libraries() {
+
 			@Override
 			public void doWithLibraries(LibraryCallback callback) throws IOException {
 				callback.library(new Library(libJarFile, scope));
 			}
+
 		});
-		assertThat(hasEntry(file, "test/" + libJarFile.getName()), equalTo(true));
-		assertThat(getManifest(file).getMainAttributes().getValue("Main-Class"),
-				equalTo("testLauncher"));
+		assertThat(hasEntry(file, "test/" + libJarFile.getName())).isTrue();
+		assertThat(getManifest(file).getMainAttributes().getValue("Spring-Boot-Lib"))
+				.isEqualTo("test-lib/");
+		assertThat(getManifest(file).getMainAttributes().getValue("Main-Class"))
+				.isEqualTo("testLauncher");
+	}
+
+	@Test
+	public void customLayoutNoBootLib() throws Exception {
+		TestJarFile libJar = new TestJarFile(this.temporaryFolder);
+		libJar.addClass("a/b/C.class", ClassWithoutMainMethod.class);
+		final File libJarFile = libJar.getFile();
+		this.testJarFile.addClass("a/b/C.class", ClassWithMainMethod.class);
+		File file = this.testJarFile.getFile();
+		Repackager repackager = new Repackager(file);
+		Layout layout = mock(Layout.class);
+		final LibraryScope scope = mock(LibraryScope.class);
+		given(layout.getLauncherClassName()).willReturn("testLauncher");
+		repackager.setLayout(layout);
+		repackager.repackage(new Libraries() {
+
+			@Override
+			public void doWithLibraries(LibraryCallback callback) throws IOException {
+				callback.library(new Library(libJarFile, scope));
+			}
+
+		});
+		assertThat(getManifest(file).getMainAttributes().getValue("Spring-Boot-Lib"))
+				.isNull();
+		assertThat(getManifest(file).getMainAttributes().getValue("Main-Class"))
+				.isEqualTo("testLauncher");
 	}
 
 	@Test
@@ -368,9 +400,35 @@ public class RepackagerTests {
 		Repackager repackager = new Repackager(file);
 		repackager.repackage(NO_LIBRARIES);
 		Manifest actualManifest = getManifest(file);
-		assertThat(
-				actualManifest.getMainAttributes().containsKey(
-						new Attributes.Name("Spring-Boot-Version")), equalTo(true));
+		assertThat(actualManifest.getMainAttributes())
+				.containsKey(new Attributes.Name("Spring-Boot-Version"));
+	}
+
+	@Test
+	public void executableJarLayoutAttributes() throws Exception {
+		this.testJarFile.addClass("a/b/C.class", ClassWithMainMethod.class);
+		File file = this.testJarFile.getFile();
+		Repackager repackager = new Repackager(file);
+		repackager.repackage(NO_LIBRARIES);
+		Manifest actualManifest = getManifest(file);
+		assertThat(actualManifest.getMainAttributes())
+				.containsEntry(new Attributes.Name("Spring-Boot-Lib"), "BOOT-INF/lib/");
+		assertThat(actualManifest.getMainAttributes()).containsEntry(
+				new Attributes.Name("Spring-Boot-Classes"), "BOOT-INF/classes/");
+	}
+
+	@Test
+	public void executableWarLayoutAttributes() throws Exception {
+		this.testJarFile.addClass("WEB-INF/classes/a/b/C.class",
+				ClassWithMainMethod.class);
+		File file = this.testJarFile.getFile("war");
+		Repackager repackager = new Repackager(file);
+		repackager.repackage(NO_LIBRARIES);
+		Manifest actualManifest = getManifest(file);
+		assertThat(actualManifest.getMainAttributes())
+				.containsEntry(new Attributes.Name("Spring-Boot-Lib"), "WEB-INF/lib/");
+		assertThat(actualManifest.getMainAttributes()).containsEntry(
+				new Attributes.Name("Spring-Boot-Classes"), "WEB-INF/classes/");
 	}
 
 	@Test
@@ -399,10 +457,11 @@ public class RepackagerTests {
 		});
 		JarFile jarFile = new JarFile(file);
 		try {
-			assertThat(jarFile.getEntry("lib/" + nestedFile.getName()).getMethod(),
-					equalTo(ZipEntry.STORED));
-			assertThat(jarFile.getEntry("test/nested.jar").getMethod(),
-					equalTo(ZipEntry.STORED));
+			assertThat(
+					jarFile.getEntry("BOOT-INF/lib/" + nestedFile.getName()).getMethod())
+							.isEqualTo(ZipEntry.STORED);
+			assertThat(jarFile.getEntry("BOOT-INF/classes/test/nested.jar").getMethod())
+					.isEqualTo(ZipEntry.STORED);
 		}
 		finally {
 			jarFile.close();
@@ -418,12 +477,12 @@ public class RepackagerTests {
 		LaunchScript script = new MockLauncherScript("ABC");
 		repackager.repackage(dest, NO_LIBRARIES, script);
 		byte[] bytes = FileCopyUtils.copyToByteArray(dest);
-		assertThat(new String(bytes), startsWith("ABC"));
-		assertThat(hasLauncherClasses(source), equalTo(false));
-		assertThat(hasLauncherClasses(dest), equalTo(true));
+		assertThat(new String(bytes)).startsWith("ABC");
+		assertThat(hasLauncherClasses(source)).isFalse();
+		assertThat(hasLauncherClasses(dest)).isTrue();
 		try {
-			assertThat(Files.getPosixFilePermissions(dest.toPath()),
-					hasItem(PosixFilePermission.OWNER_EXECUTE));
+			assertThat(Files.getPosixFilePermissions(dest.toPath()))
+					.contains(PosixFilePermission.OWNER_EXECUTE);
 		}
 		catch (UnsupportedOperationException ex) {
 			// Probably running the test on Windows
@@ -431,11 +490,13 @@ public class RepackagerTests {
 	}
 
 	@Test
-	public void unpackLibrariesTakePrecedenceOverExistingSourceEntries() throws Exception {
+	public void unpackLibrariesTakePrecedenceOverExistingSourceEntries()
+			throws Exception {
 		TestJarFile nested = new TestJarFile(this.temporaryFolder);
 		nested.addClass("a/b/C.class", ClassWithoutMainMethod.class);
 		final File nestedFile = nested.getFile();
-		this.testJarFile.addFile("lib/" + nestedFile.getName(), nested.getFile());
+		this.testJarFile.addFile("BOOT-INF/lib/" + nestedFile.getName(),
+				nested.getFile());
 		this.testJarFile.addClass("A.class", ClassWithMainMethod.class);
 		File file = this.testJarFile.getFile();
 		Repackager repackager = new Repackager(file);
@@ -449,8 +510,9 @@ public class RepackagerTests {
 		});
 		JarFile jarFile = new JarFile(file);
 		try {
-			assertThat(jarFile.getEntry("lib/" + nestedFile.getName()).getComment(),
-					startsWith("UNPACK:"));
+			assertThat(
+					jarFile.getEntry("BOOT-INF/lib/" + nestedFile.getName()).getComment())
+							.startsWith("UNPACK:");
 		}
 		finally {
 			jarFile.close();
@@ -463,7 +525,8 @@ public class RepackagerTests {
 		TestJarFile nested = new TestJarFile(this.temporaryFolder);
 		nested.addClass("a/b/C.class", ClassWithoutMainMethod.class);
 		final File nestedFile = nested.getFile();
-		this.testJarFile.addFile("lib/" + nestedFile.getName(), nested.getFile());
+		this.testJarFile.addFile("BOOT-INF/lib/" + nestedFile.getName(),
+				nested.getFile());
 		this.testJarFile.addClass("A.class", ClassWithMainMethod.class);
 		File file = this.testJarFile.getFile();
 		Repackager repackager = new Repackager(file);
@@ -481,8 +544,69 @@ public class RepackagerTests {
 		});
 		JarFile jarFile = new JarFile(file);
 		try {
-			assertThat(jarFile.getEntry("lib/" + nestedFile.getName()).getSize(),
-					equalTo(sourceLength));
+			assertThat(jarFile.getEntry("BOOT-INF/lib/" + nestedFile.getName()).getSize())
+					.isEqualTo(sourceLength);
+		}
+		finally {
+			jarFile.close();
+		}
+	}
+
+	@Test
+	public void metaInfIndexListIsRemovedFromRepackagedJar() throws Exception {
+		this.testJarFile.addClass("A.class", ClassWithMainMethod.class);
+		this.testJarFile.addFile("META-INF/INDEX.LIST",
+				this.temporaryFolder.newFile("INDEX.LIST"));
+		File source = this.testJarFile.getFile();
+		File dest = this.temporaryFolder.newFile("dest.jar");
+		Repackager repackager = new Repackager(source);
+		repackager.repackage(dest, NO_LIBRARIES);
+		JarFile jarFile = new JarFile(dest);
+		try {
+			assertThat(jarFile.getEntry("META-INF/INDEX.LIST")).isNull();
+		}
+		finally {
+			jarFile.close();
+		}
+	}
+
+	@Test
+	public void customLayoutFactoryWithoutLayout() throws Exception {
+		this.testJarFile.addClass("a/b/C.class", ClassWithMainMethod.class);
+		File source = this.testJarFile.getFile();
+		Repackager repackager = new Repackager(source, new TestLayoutFactory());
+		repackager.repackage(NO_LIBRARIES);
+		JarFile jarFile = new JarFile(source);
+		assertThat(jarFile.getEntry("test")).isNotNull();
+		jarFile.close();
+	}
+
+	@Test
+	public void customLayoutFactoryWithLayout() throws Exception {
+		this.testJarFile.addClass("a/b/C.class", ClassWithMainMethod.class);
+		File source = this.testJarFile.getFile();
+		Repackager repackager = new Repackager(source, new TestLayoutFactory());
+		repackager.setLayout(new Layouts.Jar());
+		repackager.repackage(NO_LIBRARIES);
+		JarFile jarFile = new JarFile(source);
+		assertThat(jarFile.getEntry("test")).isNull();
+		jarFile.close();
+	}
+
+	@Test
+	public void metaInfAopXmlIsMovedBeneathBootInfClassesWhenRepackaged()
+			throws Exception {
+		this.testJarFile.addClass("A.class", ClassWithMainMethod.class);
+		this.testJarFile.addFile("META-INF/aop.xml",
+				this.temporaryFolder.newFile("aop.xml"));
+		File source = this.testJarFile.getFile();
+		File dest = this.temporaryFolder.newFile("dest.jar");
+		Repackager repackager = new Repackager(source);
+		repackager.repackage(dest, NO_LIBRARIES);
+		JarFile jarFile = new JarFile(dest);
+		try {
+			assertThat(jarFile.getEntry("META-INF/aop.xml")).isNull();
+			assertThat(jarFile.getEntry("BOOT-INF/classes/META-INF/aop.xml")).isNotNull();
 		}
 		finally {
 			jarFile.close();
@@ -529,6 +653,24 @@ public class RepackagerTests {
 		@Override
 		public byte[] toByteArray() {
 			return this.bytes;
+		}
+
+	}
+
+	public static class TestLayoutFactory implements LayoutFactory {
+
+		@Override
+		public Layout getLayout(File source) {
+			return new TestLayout();
+		}
+
+	}
+
+	private static class TestLayout extends Layouts.Jar implements CustomLoaderLayout {
+
+		@Override
+		public void writeLoadedClasses(LoaderClassesWriter writer) throws IOException {
+			writer.writeEntry("test", new ByteArrayInputStream("test".getBytes()));
 		}
 
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import org.zeroturnaround.zip.ZipUtil;
 
 /**
  * @author Phillip Webb
+ * @author Andy Wilkinson
  */
 public class TestJarFile {
 
@@ -54,7 +55,7 @@ public class TestJarFile {
 		File file = getFilePath(filename);
 		file.getParentFile().mkdirs();
 		InputStream inputStream = getClass().getResourceAsStream(
-				"/" + classToCopy.getName().replace(".", "/") + ".class");
+				"/" + classToCopy.getName().replace('.', '/') + ".class");
 		copyToFile(inputStream, file);
 		if (time != null) {
 			file.setLastModified(time);
@@ -121,8 +122,12 @@ public class TestJarFile {
 	}
 
 	public File getFile() throws IOException {
+		return getFile("jar");
+	}
+
+	public File getFile(String extension) throws IOException {
 		File file = this.temporaryFolder.newFile();
-		file = new File(file.getParent(), file.getName() + ".jar");
+		file = new File(file.getParent(), file.getName() + "." + extension);
 		ZipUtil.pack(this.jarSource, file);
 		return file;
 	}

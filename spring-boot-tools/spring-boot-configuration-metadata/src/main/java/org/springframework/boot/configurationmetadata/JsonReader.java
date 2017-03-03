@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,14 +41,26 @@ class JsonReader {
 
 	public RawConfigurationMetadata read(InputStream in, Charset charset)
 			throws IOException {
-		JSONObject json = readJson(in, charset);
-		List<ConfigurationMetadataSource> groups = parseAllSources(json);
-		List<ConfigurationMetadataItem> items = parseAllItems(json);
-		List<ConfigurationMetadataHint> hints = parseAllHints(json);
-		return new RawConfigurationMetadata(groups, items, hints);
+		try {
+			JSONObject json = readJson(in, charset);
+			List<ConfigurationMetadataSource> groups = parseAllSources(json);
+			List<ConfigurationMetadataItem> items = parseAllItems(json);
+			List<ConfigurationMetadataHint> hints = parseAllHints(json);
+			return new RawConfigurationMetadata(groups, items, hints);
+		}
+		catch (Exception ex) {
+			if (ex instanceof IOException) {
+				throw (IOException) ex;
+			}
+			if (ex instanceof RuntimeException) {
+				throw (RuntimeException) ex;
+			}
+			throw new IllegalStateException(ex);
+		}
 	}
 
-	private List<ConfigurationMetadataSource> parseAllSources(JSONObject root) {
+	private List<ConfigurationMetadataSource> parseAllSources(JSONObject root)
+			throws Exception {
 		List<ConfigurationMetadataSource> result = new ArrayList<ConfigurationMetadataSource>();
 		if (!root.has("groups")) {
 			return result;
@@ -61,7 +73,8 @@ class JsonReader {
 		return result;
 	}
 
-	private List<ConfigurationMetadataItem> parseAllItems(JSONObject root) {
+	private List<ConfigurationMetadataItem> parseAllItems(JSONObject root)
+			throws Exception {
 		List<ConfigurationMetadataItem> result = new ArrayList<ConfigurationMetadataItem>();
 		if (!root.has("properties")) {
 			return result;
@@ -74,7 +87,8 @@ class JsonReader {
 		return result;
 	}
 
-	private List<ConfigurationMetadataHint> parseAllHints(JSONObject root) {
+	private List<ConfigurationMetadataHint> parseAllHints(JSONObject root)
+			throws Exception {
 		List<ConfigurationMetadataHint> result = new ArrayList<ConfigurationMetadataHint>();
 		if (!root.has("hints")) {
 			return result;
@@ -87,27 +101,27 @@ class JsonReader {
 		return result;
 	}
 
-	private ConfigurationMetadataSource parseSource(JSONObject json) {
+	private ConfigurationMetadataSource parseSource(JSONObject json) throws Exception {
 		ConfigurationMetadataSource source = new ConfigurationMetadataSource();
 		source.setGroupId(json.getString("name"));
 		source.setType(json.optString("type", null));
 		String description = json.optString("description", null);
 		source.setDescription(description);
-		source.setShortDescription(this.descriptionExtractor
-				.getShortDescription(description));
+		source.setShortDescription(
+				this.descriptionExtractor.getShortDescription(description));
 		source.setSourceType(json.optString("sourceType", null));
 		source.setSourceMethod(json.optString("sourceMethod", null));
 		return source;
 	}
 
-	private ConfigurationMetadataItem parseItem(JSONObject json) {
+	private ConfigurationMetadataItem parseItem(JSONObject json) throws Exception {
 		ConfigurationMetadataItem item = new ConfigurationMetadataItem();
 		item.setId(json.getString("name"));
 		item.setType(json.optString("type", null));
 		String description = json.optString("description", null);
 		item.setDescription(description);
-		item.setShortDescription(this.descriptionExtractor
-				.getShortDescription(description));
+		item.setShortDescription(
+				this.descriptionExtractor.getShortDescription(description));
 		item.setDefaultValue(readItemValue(json.opt("defaultValue")));
 		item.setDeprecation(parseDeprecation(json));
 		item.setSourceType(json.optString("sourceType", null));
@@ -115,7 +129,7 @@ class JsonReader {
 		return item;
 	}
 
-	private ConfigurationMetadataHint parseHint(JSONObject json) {
+	private ConfigurationMetadataHint parseHint(JSONObject json) throws Exception {
 		ConfigurationMetadataHint hint = new ConfigurationMetadataHint();
 		hint.setId(json.getString("name"));
 		if (json.has("values")) {
@@ -126,8 +140,8 @@ class JsonReader {
 				valueHint.setValue(readItemValue(value.get("value")));
 				String description = value.optString("description", null);
 				valueHint.setDescription(description);
-				valueHint.setShortDescription(this.descriptionExtractor
-						.getShortDescription(description));
+				valueHint.setShortDescription(
+						this.descriptionExtractor.getShortDescription(description));
 				hint.getValueHints().add(valueHint);
 			}
 		}
@@ -152,19 +166,19 @@ class JsonReader {
 		return hint;
 	}
 
-	private Deprecation parseDeprecation(JSONObject object) {
+	private Deprecation parseDeprecation(JSONObject object) throws Exception {
 		if (object.has("deprecation")) {
 			JSONObject deprecationJsonObject = object.getJSONObject("deprecation");
 			Deprecation deprecation = new Deprecation();
 			deprecation.setReason(deprecationJsonObject.optString("reason", null));
-			deprecation.setReplacement(deprecationJsonObject.optString("replacement",
-					null));
+			deprecation
+					.setReplacement(deprecationJsonObject.optString("replacement", null));
 			return deprecation;
 		}
 		return (object.optBoolean("deprecated") ? new Deprecation() : null);
 	}
 
-	private Object readItemValue(Object value) {
+	private Object readItemValue(Object value) throws Exception {
 		if (value instanceof JSONArray) {
 			JSONArray array = (JSONArray) value;
 			Object[] content = new Object[array.length()];
@@ -176,7 +190,7 @@ class JsonReader {
 		return value;
 	}
 
-	private JSONObject readJson(InputStream in, Charset charset) throws IOException {
+	private JSONObject readJson(InputStream in, Charset charset) throws Exception {
 		try {
 			StringBuilder out = new StringBuilder();
 			InputStreamReader reader = new InputStreamReader(in, charset);

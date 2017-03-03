@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package org.springframework.boot.autoconfigure.cache;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.core.io.Resource;
@@ -44,6 +45,10 @@ public class CacheProperties {
 	 */
 	private List<String> cacheNames = new ArrayList<String>();
 
+	private final Caffeine caffeine = new Caffeine();
+
+	private final Couchbase couchbase = new Couchbase();
+
 	private final EhCache ehcache = new EhCache();
 
 	private final Hazelcast hazelcast = new Hazelcast();
@@ -51,8 +56,6 @@ public class CacheProperties {
 	private final Infinispan infinispan = new Infinispan();
 
 	private final JCache jcache = new JCache();
-
-	private final Guava guava = new Guava();
 
 	public CacheType getType() {
 		return this.type;
@@ -68,6 +71,14 @@ public class CacheProperties {
 
 	public void setCacheNames(List<String> cacheNames) {
 		this.cacheNames = cacheNames;
+	}
+
+	public Caffeine getCaffeine() {
+		return this.caffeine;
+	}
+
+	public Couchbase getCouchbase() {
+		return this.couchbase;
 	}
 
 	public EhCache getEhcache() {
@@ -86,10 +97,6 @@ public class CacheProperties {
 		return this.jcache;
 	}
 
-	public Guava getGuava() {
-		return this.guava;
-	}
-
 	/**
 	 * Resolve the config location if set.
 	 * @param config the config resource
@@ -104,6 +111,56 @@ public class CacheProperties {
 			return config;
 		}
 		return null;
+	}
+
+	/**
+	 * Caffeine specific cache properties.
+	 */
+	public static class Caffeine {
+
+		/**
+		 * The spec to use to create caches. Check CaffeineSpec for more details on the
+		 * spec format.
+		 */
+		private String spec;
+
+		public String getSpec() {
+			return this.spec;
+		}
+
+		public void setSpec(String spec) {
+			this.spec = spec;
+		}
+
+	}
+
+	/**
+	 * Couchbase specific cache properties.
+	 */
+	public static class Couchbase {
+
+		/**
+		 * Entry expiration in milliseconds. By default the entries never expire. Note
+		 * that this value is ultimately converted to seconds.
+		 */
+		private int expiration;
+
+		public int getExpiration() {
+			return this.expiration;
+		}
+
+		/**
+		 * Return the expiration in seconds.
+		 * @return the expiration in seconds
+		 */
+		public int getExpirationSeconds() {
+			return (int) TimeUnit.MILLISECONDS.toSeconds(this.expiration);
+		}
+
+		public void setExpiration(int expiration) {
+			this.expiration = expiration;
+		}
+
 	}
 
 	/**
@@ -198,27 +255,6 @@ public class CacheProperties {
 
 		public void setConfig(Resource config) {
 			this.config = config;
-		}
-
-	}
-
-	/**
-	 * Guava specific cache properties.
-	 */
-	public static class Guava {
-
-		/**
-		 * The spec to use to create caches. Check CacheBuilderSpec for more details on
-		 * the spec format.
-		 */
-		private String spec;
-
-		public String getSpec() {
-			return this.spec;
-		}
-
-		public void setSpec(String spec) {
-			this.spec = spec;
 		}
 
 	}

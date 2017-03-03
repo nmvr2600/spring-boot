@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,8 @@
 
 package org.springframework.boot.actuate.autoconfigure;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import com.codahale.metrics.MetricRegistry;
+
 import org.springframework.boot.actuate.metrics.CounterService;
 import org.springframework.boot.actuate.metrics.GaugeService;
 import org.springframework.boot.actuate.metrics.buffer.BufferCounterService;
@@ -27,32 +28,23 @@ import org.springframework.boot.actuate.metrics.buffer.GaugeBuffers;
 import org.springframework.boot.actuate.metrics.export.Exporter;
 import org.springframework.boot.actuate.metrics.export.MetricCopyExporter;
 import org.springframework.boot.actuate.metrics.repository.InMemoryMetricRepository;
-import org.springframework.boot.actuate.metrics.repository.MetricRepository;
-import org.springframework.boot.actuate.metrics.writer.DefaultCounterService;
-import org.springframework.boot.actuate.metrics.writer.DefaultGaugeService;
 import org.springframework.boot.actuate.metrics.writer.MetricWriter;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnJava;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnJava.JavaVersion;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnJava.Range;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.MessageChannel;
-
-import com.codahale.metrics.MetricRegistry;
 
 /**
  * {@link EnableAutoConfiguration Auto-configuration} for metrics services. Creates
  * user-facing {@link GaugeService} and {@link CounterService} instances, and also back
  * end repositories to catch the data pumped into them.
  * <p>
- * An {@link InMemoryMetricRepository} is always created unless another
- * {@link MetricRepository} is already provided by the user. In general, even if metric
- * data needs to be stored and analysed remotely, it is recommended to use an in-memory
- * repository to buffer metric updates locally. The values can be exported (e.g. on a
- * periodic basis) using an {@link Exporter}, most implementations of which have
- * optimizations for sending data to remote repositories.
+ * In general, even if metric data needs to be stored and analysed remotely, it is
+ * recommended to use in-memory storage to buffer metric updates locally as is done by the
+ * default {@link CounterBuffers} and {@link GaugeBuffers}. The values can be exported
+ * (e.g. on a periodic basis) using an {@link Exporter}, most implementations of which
+ * have optimizations for sending data to remote repositories.
  * <p>
  * If Spring Messaging is on the classpath and a {@link MessageChannel} called
  * "metricsChannel" is also available, all metric update events are published additionally
@@ -75,37 +67,12 @@ import com.codahale.metrics.MetricRegistry;
  * @see MetricWriter
  * @see InMemoryMetricRepository
  * @see Exporter
- *
  * @author Dave Syer
  */
 @Configuration
 public class MetricRepositoryAutoConfiguration {
 
 	@Configuration
-	@ConditionalOnJava(value = JavaVersion.EIGHT, range = Range.OLDER_THAN)
-	@ConditionalOnMissingBean(GaugeService.class)
-	static class LegacyMetricServicesConfiguration {
-
-		@Autowired
-		@ActuatorMetricWriter
-		private MetricWriter writer;
-
-		@Bean
-		@ConditionalOnMissingBean(CounterService.class)
-		public DefaultCounterService counterService() {
-			return new DefaultCounterService(this.writer);
-		}
-
-		@Bean
-		@ConditionalOnMissingBean(GaugeService.class)
-		public DefaultGaugeService gaugeService() {
-			return new DefaultGaugeService(this.writer);
-		}
-
-	}
-
-	@Configuration
-	@ConditionalOnJava(JavaVersion.EIGHT)
 	@ConditionalOnMissingBean(GaugeService.class)
 	static class FastMetricServicesConfiguration {
 
@@ -139,19 +106,6 @@ public class MetricRepositoryAutoConfiguration {
 		@ConditionalOnMissingBean(GaugeService.class)
 		public BufferGaugeService gaugeService(GaugeBuffers writer) {
 			return new BufferGaugeService(writer);
-		}
-	}
-
-	@Configuration
-	@ConditionalOnJava(value = JavaVersion.EIGHT, range = Range.OLDER_THAN)
-	@ConditionalOnMissingBean(name = "actuatorMetricRepository")
-	static class LegacyMetricRepositoryConfiguration {
-
-		@Bean
-		@ExportMetricReader
-		@ActuatorMetricWriter
-		public InMemoryMetricRepository actuatorMetricRepository() {
-			return new InMemoryMetricRepository();
 		}
 
 	}

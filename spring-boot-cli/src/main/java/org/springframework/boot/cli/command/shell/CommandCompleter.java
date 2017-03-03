@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2014 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,10 +22,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.boot.cli.command.Command;
-import org.springframework.boot.cli.command.options.OptionHelp;
-import org.springframework.boot.cli.util.Log;
-
 import jline.console.ConsoleReader;
 import jline.console.completer.AggregateCompleter;
 import jline.console.completer.ArgumentCompleter;
@@ -33,6 +29,10 @@ import jline.console.completer.ArgumentCompleter.ArgumentDelimiter;
 import jline.console.completer.Completer;
 import jline.console.completer.FileNameCompleter;
 import jline.console.completer.StringsCompleter;
+
+import org.springframework.boot.cli.command.Command;
+import org.springframework.boot.cli.command.options.OptionHelp;
+import org.springframework.boot.cli.util.Log;
 
 /**
  * JLine {@link Completer} for Spring Boot {@link Command}s.
@@ -59,10 +59,10 @@ public class CommandCompleter extends StringsCompleter {
 			for (OptionHelp optionHelp : command.getOptionsHelp()) {
 				options.addAll(optionHelp.getOptions());
 			}
-			AggregateCompleter arguementCompleters = new AggregateCompleter(
+			AggregateCompleter argumentCompleters = new AggregateCompleter(
 					new StringsCompleter(options), new FileNameCompleter());
-			ArgumentCompleter argumentCompleter = new ArgumentCompleter(
-					argumentDelimiter, arguementCompleters);
+			ArgumentCompleter argumentCompleter = new ArgumentCompleter(argumentDelimiter,
+					argumentCompleters);
 			argumentCompleter.setStrict(false);
 			this.commandCompleters.put(command.getName(), argumentCompleter);
 		}
@@ -99,8 +99,8 @@ public class CommandCompleter extends StringsCompleter {
 			for (OptionHelp optionHelp : command.getOptionsHelp()) {
 				OptionHelpLine optionHelpLine = new OptionHelpLine(optionHelp);
 				optionHelpLines.add(optionHelpLine);
-				maxOptionsLength = Math.max(maxOptionsLength, optionHelpLine.getOptions()
-						.length());
+				maxOptionsLength = Math.max(maxOptionsLength,
+						optionHelpLine.getOptions().length());
 			}
 
 			this.console.println();
@@ -127,7 +127,7 @@ public class CommandCompleter extends StringsCompleter {
 		private final String usage;
 
 		OptionHelpLine(OptionHelp optionHelp) {
-			StringBuffer options = new StringBuffer();
+			StringBuilder options = new StringBuilder();
 			for (String option : optionHelp.getOptions()) {
 				options.append(options.length() == 0 ? "" : ", ");
 				options.append(option);
@@ -143,5 +143,7 @@ public class CommandCompleter extends StringsCompleter {
 		public String getUsage() {
 			return this.usage;
 		}
+
 	}
+
 }

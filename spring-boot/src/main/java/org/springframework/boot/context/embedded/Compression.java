@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ public class Compression {
 	 * Comma-separated list of MIME types that should be compressed.
 	 */
 	private String[] mimeTypes = new String[] { "text/html", "text/xml", "text/plain",
-			"text/css" };
+			"text/css", "text/javascript", "application/javascript" };
 
 	/**
 	 * Comma-separated list of user agents for which responses should not be compressed.
@@ -77,4 +77,5 @@ public class Compression {
 	public void setExcludedUserAgents(String[] excludedUserAgents) {
 		this.excludedUserAgents = excludedUserAgents;
 	}
+
 }

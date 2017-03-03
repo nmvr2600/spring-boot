@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import javax.management.ReflectionException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 
@@ -41,15 +42,15 @@ import org.springframework.cache.CacheManager;
  * @author Stephane Nicoll
  * @since 1.3.0
  */
-public abstract class AbstractJmxCacheStatisticsProvider<C extends Cache> implements
-		CacheStatisticsProvider<C> {
+public abstract class AbstractJmxCacheStatisticsProvider<C extends Cache>
+		implements CacheStatisticsProvider<C> {
 
 	private static final Logger logger = LoggerFactory
 			.getLogger(AbstractJmxCacheStatisticsProvider.class);
 
 	private MBeanServer mBeanServer;
 
-	private Map<String, ObjectNameWrapper> caches = new ConcurrentHashMap<String, ObjectNameWrapper>();
+	private final Map<String, ObjectNameWrapper> caches = new ConcurrentHashMap<String, ObjectNameWrapper>();
 
 	@Override
 	public CacheStatistics getCacheStatistics(CacheManager cacheManager, C cache) {
@@ -81,7 +82,8 @@ public abstract class AbstractJmxCacheStatisticsProvider<C extends Cache> implem
 	 */
 	protected abstract CacheStatistics getCacheStatistics(ObjectName objectName);
 
-	private ObjectName internalGetObjectName(C cache) throws MalformedObjectNameException {
+	private ObjectName internalGetObjectName(C cache)
+			throws MalformedObjectNameException {
 		String cacheName = cache.getName();
 		ObjectNameWrapper value = this.caches.get(cacheName);
 		if (value != null) {

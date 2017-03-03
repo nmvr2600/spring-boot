@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2014 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,14 @@
 
 package org.springframework.boot.cli.command.test;
 
+import joptsimple.OptionSet;
+
 import org.springframework.boot.cli.command.Command;
 import org.springframework.boot.cli.command.OptionParsingCommand;
 import org.springframework.boot.cli.command.options.CompilerOptionHandler;
 import org.springframework.boot.cli.command.options.OptionSetGroovyCompilerConfiguration;
 import org.springframework.boot.cli.command.options.SourceOptions;
 import org.springframework.boot.cli.command.status.ExitStatus;
-
-import joptsimple.OptionSet;
 
 /**
  * {@link Command} to run a groovy test script or scripts.
@@ -68,6 +68,7 @@ public class TestCommand extends OptionParsingCommand {
 					CompilerOptionHandler optionHandler) {
 				super(options, optionHandler);
 			}
+
 		}
 
 	}

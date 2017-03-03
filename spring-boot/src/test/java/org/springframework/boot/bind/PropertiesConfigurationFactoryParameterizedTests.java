@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,13 +25,14 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
+
 import org.springframework.context.support.StaticMessageSource;
 import org.springframework.core.env.MutablePropertySources;
 import org.springframework.core.env.PropertiesPropertySource;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.support.PropertiesLoaderUtils;
 
-import static org.junit.Assert.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Parameterized tests for {@link PropertiesConfigurationFactory}
@@ -42,8 +43,6 @@ import static org.junit.Assert.assertEquals;
 @RunWith(Parameterized.class)
 public class PropertiesConfigurationFactoryParameterizedTests {
 
-	private final boolean usePropertySource;
-
 	private String targetName;
 
 	private PropertiesConfigurationFactory<Foo> factory = new PropertiesConfigurationFactory<Foo>(
@@ -51,50 +50,46 @@ public class PropertiesConfigurationFactoryParameterizedTests {
 
 	@Parameters
 	public static Object[] parameters() {
-		return new Object[] { new Object[] { false, false },
-				new Object[] { false, true }, new Object[] { true, false },
-				new Object[] { true, true } };
+		return new Object[] { new Object[] { false }, new Object[] { true } };
 	}
 
-	public PropertiesConfigurationFactoryParameterizedTests(boolean ignoreUnknownFields,
-			boolean usePropertySource) {
+	public PropertiesConfigurationFactoryParameterizedTests(boolean ignoreUnknownFields) {
 		this.factory.setIgnoreUnknownFields(ignoreUnknownFields);
-		this.usePropertySource = usePropertySource;
 	}
 
 	@Test
 	public void testValidPropertiesLoadsWithNoErrors() throws Exception {
 		Foo foo = createFoo("name: blah\nbar: blah");
-		assertEquals("blah", foo.bar);
-		assertEquals("blah", foo.name);
+		assertThat(foo.bar).isEqualTo("blah");
+		assertThat(foo.name).isEqualTo("blah");
 	}
 
 	@Test
 	public void testValidPropertiesLoadsWithUpperCase() throws Exception {
 		Foo foo = createFoo("NAME: blah\nbar: blah");
-		assertEquals("blah", foo.bar);
-		assertEquals("blah", foo.name);
+		assertThat(foo.bar).isEqualTo("blah");
+		assertThat(foo.name).isEqualTo("blah");
 	}
 
 	@Test
 	public void testUnderscore() throws Exception {
 		Foo foo = createFoo("spring_foo_baz: blah\nname: blah");
-		assertEquals("blah", foo.spring_foo_baz);
-		assertEquals("blah", foo.name);
+		assertThat(foo.spring_foo_baz).isEqualTo("blah");
+		assertThat(foo.name).isEqualTo("blah");
 	}
 
 	@Test
 	public void testBindToNamedTarget() throws Exception {
 		this.targetName = "foo";
 		Foo foo = createFoo("hi: hello\nfoo.name: foo\nfoo.bar: blah");
-		assertEquals("blah", foo.bar);
+		assertThat(foo.bar).isEqualTo("blah");
 	}
 
 	@Test
 	public void testBindToNamedTargetUppercaseUnderscores() throws Exception {
 		this.targetName = "foo";
 		Foo foo = createFoo("FOO_NAME: foo\nFOO_BAR: blah");
-		assertEquals("blah", foo.bar);
+		assertThat(foo.bar).isEqualTo("blah");
 	}
 
 	private Foo createFoo(final String values) throws Exception {
@@ -105,14 +100,9 @@ public class PropertiesConfigurationFactoryParameterizedTests {
 	private Foo bindFoo(final String values) throws Exception {
 		Properties properties = PropertiesLoaderUtils
 				.loadProperties(new ByteArrayResource(values.getBytes()));
-		if (this.usePropertySource) {
-			MutablePropertySources propertySources = new MutablePropertySources();
-			propertySources.addFirst(new PropertiesPropertySource("test", properties));
-			this.factory.setPropertySources(propertySources);
-		}
-		else {
-			this.factory.setProperties(properties);
-		}
+		MutablePropertySources propertySources = new MutablePropertySources();
+		propertySources.addFirst(new PropertiesPropertySource("test", properties));
+		this.factory.setPropertySources(propertySources);
 
 		this.factory.afterPropertiesSet();
 		return this.factory.getObject();

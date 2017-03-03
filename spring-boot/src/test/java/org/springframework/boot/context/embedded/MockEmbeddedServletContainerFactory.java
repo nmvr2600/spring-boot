@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2013 the original author or authors.
+ * Copyright 2012-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,9 +35,11 @@ import javax.servlet.ServletRegistration;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import org.springframework.boot.web.servlet.ServletContextInitializer;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
@@ -47,13 +49,13 @@ import static org.mockito.Mockito.spy;
  * @author Phillip Webb
  * @author Andy Wilkinson
  */
-public class MockEmbeddedServletContainerFactory extends
-		AbstractEmbeddedServletContainerFactory {
+public class MockEmbeddedServletContainerFactory
+		extends AbstractEmbeddedServletContainerFactory {
 
 	private MockEmbeddedServletContainer container;
 
 	@Override
-	public EmbeddedServletContainer getEmbeddedServletContainer(
+	public EmbeddedWebServer getEmbeddedServletContainer(
 			ServletContextInitializer... initializers) {
 		this.container = spy(new MockEmbeddedServletContainer(
 				mergeInitializers(initializers), getPort()));
@@ -69,16 +71,16 @@ public class MockEmbeddedServletContainerFactory extends
 	}
 
 	public RegisteredServlet getRegisteredServlet(int index) {
-		return getContainer() == null ? null : getContainer().getRegisteredServlets()
-				.get(index);
+		return getContainer() == null ? null
+				: getContainer().getRegisteredServlets().get(index);
 	}
 
 	public RegisteredFilter getRegisteredFilter(int index) {
-		return getContainer() == null ? null : getContainer().getRegisteredFilters().get(
-				index);
+		return getContainer() == null ? null
+				: getContainer().getRegisteredFilters().get(index);
 	}
 
-	public static class MockEmbeddedServletContainer implements EmbeddedServletContainer {
+	public static class MockEmbeddedServletContainer implements EmbeddedWebServer {
 
 		private ServletContext servletContext;
 
@@ -100,7 +102,7 @@ public class MockEmbeddedServletContainerFactory extends
 		private void initialize() {
 			try {
 				this.servletContext = mock(ServletContext.class);
-				given(this.servletContext.addServlet(anyString(), (Servlet) anyObject()))
+				given(this.servletContext.addServlet(anyString(), (Servlet) any()))
 						.willAnswer(new Answer<ServletRegistration.Dynamic>() {
 							@Override
 							public ServletRegistration.Dynamic answer(
@@ -112,7 +114,7 @@ public class MockEmbeddedServletContainerFactory extends
 								return registeredServlet.getRegistration();
 							}
 						});
-				given(this.servletContext.addFilter(anyString(), (Filter) anyObject()))
+				given(this.servletContext.addFilter(anyString(), (Filter) any()))
 						.willAnswer(new Answer<FilterRegistration.Dynamic>() {
 							@Override
 							public FilterRegistration.Dynamic answer(
@@ -130,28 +132,26 @@ public class MockEmbeddedServletContainerFactory extends
 							@Override
 							public Void answer(InvocationOnMock invocation)
 									throws Throwable {
-								initParameters.put(
-										invocation.getArgumentAt(0, String.class),
-										invocation.getArgumentAt(1, String.class));
+								initParameters.put(invocation.getArgument(0),
+										invocation.getArgument(1));
 								return null;
 							}
 
 						});
-				given(this.servletContext.getInitParameterNames()).willReturn(
-						Collections.enumeration(initParameters.keySet()));
-				given(this.servletContext.getInitParameter(anyString())).willAnswer(
-						new Answer<String>() {
+				given(this.servletContext.getInitParameterNames())
+						.willReturn(Collections.enumeration(initParameters.keySet()));
+				given(this.servletContext.getInitParameter(anyString()))
+						.willAnswer(new Answer<String>() {
 							@Override
 							public String answer(InvocationOnMock invocation)
 									throws Throwable {
-								return initParameters.get(invocation.getArgumentAt(0,
-										String.class));
+								return initParameters.get(invocation.getArgument(0));
 							}
 						});
 				given(this.servletContext.getAttributeNames()).willReturn(
 						MockEmbeddedServletContainer.<String>emptyEnumeration());
-				given(this.servletContext.getNamedDispatcher("default")).willReturn(
-						mock(RequestDispatcher.class));
+				given(this.servletContext.getNamedDispatcher("default"))
+						.willReturn(mock(RequestDispatcher.class));
 				for (ServletContextInitializer initializer : this.initializers) {
 					initializer.onStartup(this.servletContext);
 				}
@@ -167,7 +167,7 @@ public class MockEmbeddedServletContainerFactory extends
 		}
 
 		@Override
-		public void start() throws EmbeddedServletContainerException {
+		public void start() throws EmbeddedWebServerException {
 		}
 
 		@Override
@@ -198,6 +198,7 @@ public class MockEmbeddedServletContainerFactory extends
 		}
 
 		private static class EmptyEnumeration<E> implements Enumeration<E> {
+
 			static final EmptyEnumeration<Object> EMPTY_ENUMERATION = new EmptyEnumeration<Object>();
 
 			@Override
@@ -209,6 +210,7 @@ public class MockEmbeddedServletContainerFactory extends
 			public E nextElement() {
 				throw new NoSuchElementException();
 			}
+
 		}
 
 	}
@@ -231,6 +233,7 @@ public class MockEmbeddedServletContainerFactory extends
 		public Servlet getServlet() {
 			return this.servlet;
 		}
+
 	}
 
 	public static class RegisteredFilter {
@@ -251,5 +254,7 @@ public class MockEmbeddedServletContainerFactory extends
 		public Filter getFilter() {
 			return this.filter;
 		}
+
 	}
+
 }

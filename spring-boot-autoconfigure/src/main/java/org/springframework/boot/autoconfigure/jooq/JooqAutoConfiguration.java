@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,7 +30,8 @@ import org.jooq.impl.DataSourceConnectionProvider;
 import org.jooq.impl.DefaultConfiguration;
 import org.jooq.impl.DefaultDSLContext;
 import org.jooq.impl.DefaultExecuteListenerProvider;
-import org.springframework.beans.factory.annotation.Autowired;
+
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -57,9 +58,10 @@ public class JooqAutoConfiguration {
 
 	@Bean
 	@ConditionalOnMissingBean(DataSourceConnectionProvider.class)
-	public DataSourceConnectionProvider dataSourceConnectionProvider(DataSource dataSource) {
-		return new DataSourceConnectionProvider(new TransactionAwareDataSourceProxy(
-				dataSource));
+	public DataSourceConnectionProvider dataSourceConnectionProvider(
+			DataSource dataSource) {
+		return new DataSourceConnectionProvider(
+				new TransactionAwareDataSourceProxy(dataSource));
 	}
 
 	@Bean
@@ -79,29 +81,39 @@ public class JooqAutoConfiguration {
 	@EnableConfigurationProperties(JooqProperties.class)
 	public static class DslContextConfiguration {
 
-		@Autowired
-		private JooqProperties properties = new JooqProperties();
+		private final JooqProperties properties;
 
-		@Autowired
-		private ConnectionProvider connectionProvider;
+		private final ConnectionProvider connection;
 
-		@Autowired(required = false)
-		private TransactionProvider transactionProvider;
+		private final TransactionProvider transactionProvider;
 
-		@Autowired(required = false)
-		private RecordMapperProvider recordMapperProvider;
+		private final RecordMapperProvider recordMapperProvider;
 
-		@Autowired(required = false)
-		private Settings settings;
+		private final Settings settings;
 
-		@Autowired(required = false)
-		private RecordListenerProvider[] recordListenerProviders;
+		private final RecordListenerProvider[] recordListenerProviders;
 
-		@Autowired
-		private ExecuteListenerProvider[] executeListenerProviders;
+		private final ExecuteListenerProvider[] executeListenerProviders;
 
-		@Autowired(required = false)
-		private VisitListenerProvider[] visitListenerProviders;
+		private final VisitListenerProvider[] visitListenerProviders;
+
+		public DslContextConfiguration(JooqProperties properties,
+				ConnectionProvider connectionProvider,
+				ObjectProvider<TransactionProvider> transactionProvider,
+				ObjectProvider<RecordMapperProvider> recordMapperProvider,
+				ObjectProvider<Settings> settings,
+				ObjectProvider<RecordListenerProvider[]> recordListenerProviders,
+				ExecuteListenerProvider[] executeListenerProviders,
+				ObjectProvider<VisitListenerProvider[]> visitListenerProviders) {
+			this.properties = properties;
+			this.connection = connectionProvider;
+			this.transactionProvider = transactionProvider.getIfAvailable();
+			this.recordMapperProvider = recordMapperProvider.getIfAvailable();
+			this.settings = settings.getIfAvailable();
+			this.recordListenerProviders = recordListenerProviders.getIfAvailable();
+			this.executeListenerProviders = executeListenerProviders;
+			this.visitListenerProviders = visitListenerProviders.getIfAvailable();
+		}
 
 		@Bean
 		public DefaultDSLContext dslContext(org.jooq.Configuration configuration) {
@@ -115,7 +127,7 @@ public class JooqAutoConfiguration {
 			if (this.properties.getSqlDialect() != null) {
 				configuration.set(this.properties.getSqlDialect());
 			}
-			configuration.set(this.connectionProvider);
+			configuration.set(this.connection);
 			if (this.transactionProvider != null) {
 				configuration.set(this.transactionProvider);
 			}

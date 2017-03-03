@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,11 +23,16 @@ import javax.jms.Message;
 import javax.transaction.TransactionManager;
 import javax.transaction.UserTransaction;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import com.atomikos.icatch.config.UserTransactionService;
+import com.atomikos.icatch.config.UserTransactionServiceImp;
+import com.atomikos.icatch.jta.UserTransactionManager;
+
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.ApplicationHome;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.autoconfigure.transaction.TransactionManagerCustomizers;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.jta.XAConnectionFactoryWrapper;
 import org.springframework.boot.jta.XADataSourceWrapper;
 import org.springframework.boot.jta.atomikos.AtomikosDependsOnBeanFactoryPostProcessor;
@@ -40,31 +45,31 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.jta.JtaTransactionManager;
 import org.springframework.util.StringUtils;
 
-import com.atomikos.icatch.config.UserTransactionService;
-import com.atomikos.icatch.config.UserTransactionServiceImp;
-import com.atomikos.icatch.jta.UserTransactionManager;
-
 /**
  * JTA Configuration for <A href="http://www.atomikos.com/">Atomikos</a>.
  *
  * @author Josh Long
  * @author Phillip Webb
  * @author Andy Wilkinson
+ * @author Stephane Nicoll
+ * @author Kazuki Shimizu
  * @since 1.2.0
  */
 @Configuration
+@EnableConfigurationProperties({ AtomikosProperties.class, JtaProperties.class })
 @ConditionalOnClass({ JtaTransactionManager.class, UserTransactionManager.class })
 @ConditionalOnMissingBean(PlatformTransactionManager.class)
 class AtomikosJtaConfiguration {
 
-	@Autowired
-	private JtaProperties jtaProperties;
+	private final JtaProperties jtaProperties;
 
-	@Bean
-	@ConditionalOnMissingBean
-	@ConfigurationProperties(prefix = JtaProperties.PREFIX)
-	public AtomikosProperties atomikosProperties() {
-		return new AtomikosProperties();
+	private final TransactionManagerCustomizers transactionManagerCustomizers;
+
+	AtomikosJtaConfiguration(JtaProperties jtaProperties,
+			ObjectProvider<TransactionManagerCustomizers> transactionManagerCustomizers) {
+		this.jtaProperties = jtaProperties;
+		this.transactionManagerCustomizers = transactionManagerCustomizers
+				.getIfAvailable();
 	}
 
 	@Bean(initMethod = "init", destroyMethod = "shutdownForce")
@@ -114,7 +119,12 @@ class AtomikosJtaConfiguration {
 	@Bean
 	public JtaTransactionManager transactionManager(UserTransaction userTransaction,
 			TransactionManager transactionManager) {
-		return new JtaTransactionManager(userTransaction, transactionManager);
+		JtaTransactionManager jtaTransactionManager = new JtaTransactionManager(
+				userTransaction, transactionManager);
+		if (this.transactionManagerCustomizers != null) {
+			this.transactionManagerCustomizers.customize(jtaTransactionManager);
+		}
+		return jtaTransactionManager;
 	}
 
 	@Configuration

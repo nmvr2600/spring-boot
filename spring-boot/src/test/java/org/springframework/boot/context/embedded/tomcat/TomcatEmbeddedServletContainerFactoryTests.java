@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,17 @@
 
 package org.springframework.boot.context.embedded.tomcat;
 
+import java.io.File;
 import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.net.ServerSocket;
 import java.nio.charset.Charset;
 import java.util.Arrays;
-import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+
+import javax.naming.InitialContext;
+import javax.naming.NamingException;
+import javax.servlet.ServletException;
 
 import org.apache.catalina.Container;
 import org.apache.catalina.Context;
@@ -31,26 +34,32 @@ import org.apache.catalina.LifecycleEvent;
 import org.apache.catalina.LifecycleListener;
 import org.apache.catalina.LifecycleState;
 import org.apache.catalina.Service;
+import org.apache.catalina.SessionIdGenerator;
 import org.apache.catalina.Valve;
-import org.apache.catalina.Wrapper;
 import org.apache.catalina.connector.Connector;
+import org.apache.catalina.core.StandardWrapper;
 import org.apache.catalina.startup.Tomcat;
-import org.apache.coyote.http11.AbstractHttp11JsseProtocol;
+import org.apache.catalina.util.CharsetMapper;
+import org.apache.catalina.valves.RemoteIpValve;
+import org.apache.jasper.servlet.JspServlet;
+import org.apache.tomcat.util.net.SSLHostConfig;
+import org.junit.After;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.InOrder;
+
+import org.springframework.boot.context.embedded.AbstractEmbeddedServletContainerFactory;
 import org.springframework.boot.context.embedded.AbstractEmbeddedServletContainerFactoryTests;
+import org.springframework.boot.context.embedded.EmbeddedWebServerException;
 import org.springframework.boot.context.embedded.Ssl;
+import org.springframework.boot.testutil.InternalOutputCapture;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.util.SocketUtils;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.fail;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -63,12 +72,20 @@ import static org.mockito.Mockito.verify;
  * @author Dave Syer
  * @author Stephane Nicoll
  */
-public class TomcatEmbeddedServletContainerFactoryTests extends
-		AbstractEmbeddedServletContainerFactoryTests {
+public class TomcatEmbeddedServletContainerFactoryTests
+		extends AbstractEmbeddedServletContainerFactoryTests {
+
+	@Rule
+	public InternalOutputCapture outputCapture = new InternalOutputCapture();
 
 	@Override
 	protected TomcatEmbeddedServletContainerFactory getFactory() {
 		return new TomcatEmbeddedServletContainerFactory(0);
+	}
+
+	@After
+	public void restoreTccl() {
+		Thread.currentThread().setContextClassLoader(getClass().getClassLoader());
 	}
 
 	// JMX MBean names clash if you get more than one Engine with the same name...
@@ -84,8 +101,8 @@ public class TomcatEmbeddedServletContainerFactoryTests extends
 		String firstContainerName = ((TomcatEmbeddedServletContainer) this.container)
 				.getTomcat().getEngine().getName();
 		String secondContainerName = container2.getTomcat().getEngine().getName();
-		assertFalse("Tomcat engines must have different names",
-				firstContainerName.equals(secondContainerName));
+		assertThat(firstContainerName).as("Tomcat engines must have different names")
+				.isNotEqualTo(secondContainerName);
 		container2.stop();
 	}
 
@@ -101,7 +118,7 @@ public class TomcatEmbeddedServletContainerFactoryTests extends
 		this.container = factory.getEmbeddedServletContainer();
 		InOrder ordered = inOrder((Object[]) listeners);
 		for (LifecycleListener listener : listeners) {
-			ordered.verify(listener).lifecycleEvent((LifecycleEvent) anyObject());
+			ordered.verify(listener).lifecycleEvent(any(LifecycleEvent.class));
 		}
 	}
 
@@ -117,7 +134,7 @@ public class TomcatEmbeddedServletContainerFactoryTests extends
 		this.container = factory.getEmbeddedServletContainer();
 		InOrder ordered = inOrder((Object[]) listeners);
 		for (TomcatContextCustomizer listener : listeners) {
-			ordered.verify(listener).customize((Context) anyObject());
+			ordered.verify(listener).customize(any(Context.class));
 		}
 	}
 
@@ -133,7 +150,7 @@ public class TomcatEmbeddedServletContainerFactoryTests extends
 		this.container = factory.getEmbeddedServletContainer();
 		InOrder ordered = inOrder((Object[]) listeners);
 		for (TomcatConnectorCustomizer listener : listeners) {
-			ordered.verify(listener).customize((Connector) anyObject());
+			ordered.verify(listener).customize(any(Connector.class));
 		}
 	}
 
@@ -150,8 +167,8 @@ public class TomcatEmbeddedServletContainerFactoryTests extends
 		this.container = factory.getEmbeddedServletContainer();
 		Map<Service, Connector[]> connectors = ((TomcatEmbeddedServletContainer) this.container)
 				.getServiceConnectors();
-		assertThat(connectors.values().iterator().next().length,
-				equalTo(listeners.length + 1));
+		assertThat(connectors.values().iterator().next().length)
+				.isEqualTo(listeners.length + 1);
 	}
 
 	@Test
@@ -229,14 +246,18 @@ public class TomcatEmbeddedServletContainerFactoryTests extends
 		TomcatEmbeddedServletContainerFactory factory = getFactory();
 		factory.setUriEncoding(Charset.forName("US-ASCII"));
 		Tomcat tomcat = getTomcat(factory);
-		assertEquals("US-ASCII", tomcat.getConnector().getURIEncoding());
+		Connector connector = ((TomcatEmbeddedServletContainer) this.container)
+				.getServiceConnectors().get(tomcat.getService())[0];
+		assertThat(connector.getURIEncoding()).isEqualTo("US-ASCII");
 	}
 
 	@Test
 	public void defaultUriEncoding() throws Exception {
 		TomcatEmbeddedServletContainerFactory factory = getFactory();
 		Tomcat tomcat = getTomcat(factory);
-		assertEquals("UTF-8", tomcat.getConnector().getURIEncoding());
+		Connector connector = ((TomcatEmbeddedServletContainer) this.container)
+				.getServiceConnectors().get(tomcat.getService())[0];
+		assertThat(connector.getURIEncoding()).isEqualTo("UTF-8");
 	}
 
 	@Test
@@ -245,27 +266,66 @@ public class TomcatEmbeddedServletContainerFactoryTests extends
 		ssl.setKeyStore("test.jks");
 		ssl.setKeyStorePassword("secret");
 		ssl.setCiphers(new String[] { "ALPHA", "BRAVO", "CHARLIE" });
-
 		TomcatEmbeddedServletContainerFactory factory = getFactory();
 		factory.setSsl(ssl);
 
 		Tomcat tomcat = getTomcat(factory);
+		Connector connector = ((TomcatEmbeddedServletContainer) this.container)
+				.getServiceConnectors().get(tomcat.getService())[0];
+		SSLHostConfig[] sslHostConfigs = connector.getProtocolHandler()
+				.findSslHostConfigs();
+		assertThat(sslHostConfigs[0].getCiphers()).isEqualTo("ALPHA:BRAVO:CHARLIE");
+	}
+
+	@Test
+	public void sslEnabledMultipleProtocolsConfiguration() throws Exception {
+		Ssl ssl = getSsl(null, "password", "src/test/resources/test.jks");
+		ssl.setEnabledProtocols(new String[] { "TLSv1.1", "TLSv1.2" });
+		ssl.setCiphers(new String[] { "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256", "BRAVO" });
+
+		TomcatEmbeddedServletContainerFactory factory = getFactory();
+		factory.setSsl(ssl);
+
+		this.container = factory
+				.getEmbeddedServletContainer(sessionServletRegistration());
+		this.container.start();
+		Tomcat tomcat = ((TomcatEmbeddedServletContainer) this.container).getTomcat();
 		Connector connector = tomcat.getConnector();
 
-		AbstractHttp11JsseProtocol<?> jsseProtocol = (AbstractHttp11JsseProtocol<?>) connector
-				.getProtocolHandler();
-		assertThat(jsseProtocol.getCiphers(), equalTo("ALPHA,BRAVO,CHARLIE"));
+		SSLHostConfig sslHostConfig = connector.getProtocolHandler()
+				.findSslHostConfigs()[0];
+		assertThat(sslHostConfig.getSslProtocol()).isEqualTo("TLS");
+		assertThat(sslHostConfig.getEnabledProtocols())
+				.containsExactlyInAnyOrder("TLSv1.1", "TLSv1.2");
+	}
+
+	@Test
+	public void sslEnabledProtocolsConfiguration() throws Exception {
+		Ssl ssl = getSsl(null, "password", "src/test/resources/test.jks");
+		ssl.setEnabledProtocols(new String[] { "TLSv1.2" });
+		ssl.setCiphers(new String[] { "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256", "BRAVO" });
+
+		TomcatEmbeddedServletContainerFactory factory = getFactory();
+		factory.setSsl(ssl);
+
+		this.container = factory
+				.getEmbeddedServletContainer(sessionServletRegistration());
+		Tomcat tomcat = ((TomcatEmbeddedServletContainer) this.container).getTomcat();
+		this.container.start();
+		Connector connector = tomcat.getConnector();
+		SSLHostConfig sslHostConfig = connector.getProtocolHandler()
+				.findSslHostConfigs()[0];
+		assertThat(sslHostConfig.getSslProtocol()).isEqualTo("TLS");
+		assertThat(sslHostConfig.getEnabledProtocols()).containsExactly("TLSv1.2");
 	}
 
 	@Test
 	public void primaryConnectorPortClashThrowsIllegalStateException()
 			throws InterruptedException, IOException {
-		final int port = SocketUtils.findAvailableTcpPort(40000);
-
-		doWithBlockedPort(port, new Runnable() {
+		doWithBlockedPort(new BlockedPortAction() {
 
 			@Override
-			public void run() {
+			public void run(int port) {
 				TomcatEmbeddedServletContainerFactory factory = getFactory();
 				factory.setPort(port);
 
@@ -275,67 +335,165 @@ public class TomcatEmbeddedServletContainerFactoryTests extends
 					TomcatEmbeddedServletContainerFactoryTests.this.container.start();
 					fail();
 				}
-				catch (IllegalStateException ex) {
+				catch (EmbeddedWebServerException ex) {
 					// Ignore
 				}
 			}
 
 		});
-
 	}
 
 	@Test
-	public void additionalConnectorPortClashThrowsIllegalStateException()
-			throws InterruptedException, IOException {
-		final int port = SocketUtils.findAvailableTcpPort(40000);
-
-		doWithBlockedPort(port, new Runnable() {
-
-			@Override
-			public void run() {
-				TomcatEmbeddedServletContainerFactory factory = getFactory();
-				Connector connector = new Connector(
-						"org.apache.coyote.http11.Http11NioProtocol");
-				connector.setPort(port);
-				factory.addAdditionalTomcatConnectors(connector);
-
-				try {
-					TomcatEmbeddedServletContainerFactoryTests.this.container = factory
-							.getEmbeddedServletContainer();
-					TomcatEmbeddedServletContainerFactoryTests.this.container.start();
-					fail();
-				}
-				catch (IllegalStateException ex) {
-					// Ignore
-				}
-			}
-
-		});
-
+	public void startupFailureDoesNotResultInUnstoppedThreadsBeingReported()
+			throws IOException {
+		super.portClashOfPrimaryConnectorResultsInPortInUseException();
+		String string = this.outputCapture.toString();
+		assertThat(string)
+				.doesNotContain("appears to have started a thread named [main]");
 	}
 
 	@Test
-	public void jspServletInitParameters() {
-		Map<String, String> initParameters = new HashMap<String, String>();
-		initParameters.put("a", "alpha");
+	public void stopCalledWithoutStart() throws Exception {
 		TomcatEmbeddedServletContainerFactory factory = getFactory();
-		factory.getJspServlet().setInitParameters(initParameters);
-		this.container = factory.getEmbeddedServletContainer();
-		Wrapper jspServlet = getJspServlet();
-		assertThat(jspServlet.findInitParameter("a"), is(equalTo("alpha")));
+		this.container = factory
+				.getEmbeddedServletContainer(exampleServletRegistration());
+		this.container.stop();
+		Tomcat tomcat = ((TomcatEmbeddedServletContainer) this.container).getTomcat();
+		assertThat(tomcat.getServer().getState()).isSameAs(LifecycleState.DESTROYED);
 	}
 
 	@Override
-	protected Wrapper getJspServlet() {
-		Container context = ((TomcatEmbeddedServletContainer) this.container).getTomcat()
-				.getHost().findChildren()[0];
-		return (Wrapper) context.findChild("jsp");
+	protected void addConnector(int port,
+			AbstractEmbeddedServletContainerFactory factory) {
+		Connector connector = new Connector("org.apache.coyote.http11.Http11NioProtocol");
+		connector.setPort(port);
+		((TomcatEmbeddedServletContainerFactory) factory)
+				.addAdditionalTomcatConnectors(connector);
 	}
 
-	private void assertTimeout(TomcatEmbeddedServletContainerFactory factory, int expected) {
+	@Test
+	public void useForwardHeaders() throws Exception {
+		TomcatEmbeddedServletContainerFactory factory = getFactory();
+		factory.addContextValves(new RemoteIpValve());
+		assertForwardHeaderIsUsed(factory);
+	}
+
+	@Test
+	public void disableDoesNotSaveSessionFiles() throws Exception {
+		File baseDir = this.temporaryFolder.newFolder();
+		TomcatEmbeddedServletContainerFactory factory = getFactory();
+		// If baseDir is not set SESSIONS.ser is written to a different temp directory
+		// each time. By setting it we can really ensure that data isn't saved
+		factory.setBaseDirectory(baseDir);
+		this.container = factory
+				.getEmbeddedServletContainer(sessionServletRegistration());
+		this.container.start();
+		String s1 = getResponse(getLocalUrl("/session"));
+		String s2 = getResponse(getLocalUrl("/session"));
+		this.container.stop();
+		this.container = factory
+				.getEmbeddedServletContainer(sessionServletRegistration());
+		this.container.start();
+		String s3 = getResponse(getLocalUrl("/session"));
+		String message = "Session error s1=" + s1 + " s2=" + s2 + " s3=" + s3;
+		assertThat(s2.split(":")[0]).as(message).isEqualTo(s1.split(":")[1]);
+		assertThat(s3.split(":")[0]).as(message).isNotEqualTo(s2.split(":")[1]);
+	}
+
+	@Test
+	public void jndiLookupsCanBePerformedDuringApplicationContextRefresh()
+			throws NamingException {
+		Thread.currentThread().setContextClassLoader(getClass().getClassLoader());
+		TomcatEmbeddedServletContainerFactory factory = new TomcatEmbeddedServletContainerFactory(
+				0) {
+
+			@Override
+			protected TomcatEmbeddedServletContainer getTomcatEmbeddedServletContainer(
+					Tomcat tomcat) {
+				tomcat.enableNaming();
+				return super.getTomcatEmbeddedServletContainer(tomcat);
+			}
+
+		};
+
+		// Container is created in onRefresh
+		this.container = factory.getEmbeddedServletContainer();
+
+		// Lookups should now be possible
+		new InitialContext().lookup("java:comp/env");
+
+		// Called in finishRefresh, giving us an opportunity to remove the context binding
+		// and avoid a leak
+		this.container.start();
+
+		// Lookups should no longer be possible
+		this.thrown.expect(NamingException.class);
+		new InitialContext().lookup("java:comp/env");
+	}
+
+	@Test
+	public void defaultLocaleCharsetMappingsAreOverriden() throws Exception {
+		TomcatEmbeddedServletContainerFactory factory = getFactory();
+		this.container = factory.getEmbeddedServletContainer();
+		// override defaults, see org.apache.catalina.util.CharsetMapperDefault.properties
+		assertThat(getCharset(Locale.ENGLISH).toString()).isEqualTo("UTF-8");
+		assertThat(getCharset(Locale.FRENCH).toString()).isEqualTo("UTF-8");
+	}
+
+	@Test
+	public void sessionIdGeneratorIsConfiguredWithAttributesFromTheManager() {
+		System.setProperty("jvmRoute", "test");
+		try {
+			TomcatEmbeddedServletContainerFactory factory = getFactory();
+			this.container = factory.getEmbeddedServletContainer();
+			this.container.start();
+		}
+		finally {
+			System.clearProperty("jvmRoute");
+		}
+		Tomcat tomcat = ((TomcatEmbeddedServletContainer) this.container).getTomcat();
+		Context context = (Context) tomcat.getHost().findChildren()[0];
+		SessionIdGenerator sessionIdGenerator = context.getManager()
+				.getSessionIdGenerator();
+		assertThat(sessionIdGenerator).isInstanceOf(LazySessionIdGenerator.class);
+		assertThat(sessionIdGenerator.getJvmRoute()).isEqualTo("test");
+	}
+
+	@Override
+	protected JspServlet getJspServlet() throws ServletException {
+		Container context = ((TomcatEmbeddedServletContainer) this.container).getTomcat()
+				.getHost().findChildren()[0];
+		StandardWrapper standardWrapper = (StandardWrapper) context.findChild("jsp");
+		if (standardWrapper == null) {
+			return null;
+		}
+		standardWrapper.load();
+		return (JspServlet) standardWrapper.getServlet();
+	}
+
+	@SuppressWarnings("unchecked")
+	@Override
+	protected Map<String, String> getActualMimeMappings() {
+		Context context = (Context) ((TomcatEmbeddedServletContainer) this.container)
+				.getTomcat().getHost().findChildren()[0];
+		return (Map<String, String>) ReflectionTestUtils.getField(context,
+				"mimeMappings");
+	}
+
+	@Override
+	protected Charset getCharset(Locale locale) {
+		Context context = (Context) ((TomcatEmbeddedServletContainer) this.container)
+				.getTomcat().getHost().findChildren()[0];
+		CharsetMapper mapper = ((TomcatEmbeddedContext) context).getCharsetMapper();
+		String charsetName = mapper.getCharset(locale);
+		return (charsetName != null) ? Charset.forName(charsetName) : null;
+	}
+
+	private void assertTimeout(TomcatEmbeddedServletContainerFactory factory,
+			int expected) {
 		Tomcat tomcat = getTomcat(factory);
 		Context context = (Context) tomcat.getHost().findChildren()[0];
-		assertThat(context.getSessionTimeout(), equalTo(expected));
+		assertThat(context.getSessionTimeout()).isEqualTo(expected);
 	}
 
 	private Tomcat getTomcat(TomcatEmbeddedServletContainerFactory factory) {
@@ -343,16 +501,11 @@ public class TomcatEmbeddedServletContainerFactoryTests extends
 		return ((TomcatEmbeddedServletContainer) this.container).getTomcat();
 	}
 
-	private void doWithBlockedPort(final int port, Runnable action) throws IOException {
-		ServerSocket serverSocket = new ServerSocket();
-		serverSocket.bind(new InetSocketAddress(port));
-
-		try {
-			action.run();
-		}
-		finally {
-			serverSocket.close();
-		}
+	@Override
+	protected void handleExceptionCausedByBlockedPort(RuntimeException ex,
+			int blockedPort) {
+		assertThat(ex).isInstanceOf(ConnectorStartFailedException.class);
+		assertThat(((ConnectorStartFailedException) ex).getPort()).isEqualTo(blockedPort);
 	}
 
 }

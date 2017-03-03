@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,13 +31,18 @@ import javax.transaction.TransactionManager;
 import javax.transaction.UserTransaction;
 import javax.transaction.xa.XAResource;
 
+import com.atomikos.icatch.config.UserTransactionService;
+import com.atomikos.icatch.jta.UserTransactionManager;
+import com.atomikos.jms.AtomikosConnectionFactoryBean;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+import org.springframework.boot.autoconfigure.transaction.TransactionAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.jta.XAConnectionFactoryWrapper;
 import org.springframework.boot.jta.XADataSourceWrapper;
@@ -47,7 +52,7 @@ import org.springframework.boot.jta.atomikos.AtomikosProperties;
 import org.springframework.boot.jta.bitronix.BitronixDependentBeanFactoryPostProcessor;
 import org.springframework.boot.jta.bitronix.PoolingConnectionFactoryBean;
 import org.springframework.boot.jta.bitronix.PoolingDataSourceBean;
-import org.springframework.boot.test.EnvironmentTestUtils;
+import org.springframework.boot.test.util.EnvironmentTestUtils;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -55,15 +60,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.jta.JtaTransactionManager;
 import org.springframework.util.FileSystemUtils;
 
-import com.atomikos.icatch.config.UserTransactionService;
-import com.atomikos.icatch.jta.UserTransactionManager;
-import com.atomikos.jms.AtomikosConnectionFactoryBean;
-
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
@@ -73,6 +70,7 @@ import static org.mockito.Mockito.mock;
  * @author Josh Long
  * @author Phillip Webb
  * @author Andy Wilkinson
+ * @author Kazuki Shimizu
  */
 public class JtaAutoConfigurationTests {
 
@@ -107,10 +105,10 @@ public class JtaAutoConfigurationTests {
 		EnvironmentTestUtils.addEnvironment(this.context, "spring.jta.enabled:false");
 		this.context.register(JtaAutoConfiguration.class);
 		this.context.refresh();
-		assertEquals(0, this.context.getBeansOfType(JtaTransactionManager.class).size());
-		assertEquals(0, this.context.getBeansOfType(XADataSourceWrapper.class).size());
-		assertEquals(0, this.context.getBeansOfType(XAConnectionFactoryWrapper.class)
-				.size());
+		assertThat(this.context.getBeansOfType(JtaTransactionManager.class)).isEmpty();
+		assertThat(this.context.getBeansOfType(XADataSourceWrapper.class)).isEmpty();
+		assertThat(this.context.getBeansOfType(XAConnectionFactoryWrapper.class))
+				.isEmpty();
 	}
 
 	@Test
@@ -145,7 +143,7 @@ public class JtaAutoConfigurationTests {
 				JtaPropertiesConfiguration.class, BitronixJtaConfiguration.class);
 		String serverId = this.context.getBean(bitronix.tm.Configuration.class)
 				.getServerId();
-		assertThat(serverId, is(equalTo(InetAddress.getLocalHost().getHostAddress())));
+		assertThat(serverId).isEqualTo(InetAddress.getLocalHost().getHostAddress());
 	}
 
 	@Test
@@ -158,7 +156,7 @@ public class JtaAutoConfigurationTests {
 		this.context.refresh();
 		String serverId = this.context.getBean(bitronix.tm.Configuration.class)
 				.getServerId();
-		assertThat(serverId, is(equalTo("custom")));
+		assertThat(serverId).isEqualTo("custom");
 	}
 
 	@Test
@@ -172,7 +170,7 @@ public class JtaAutoConfigurationTests {
 
 		File epochFile = new File("target/transaction-logs/"
 				+ InetAddress.getLocalHost().getHostAddress() + ".tm0.epoch");
-		assertTrue(epochFile.isFile());
+		assertThat(epochFile.isFile()).isTrue();
 	}
 
 	@Test
@@ -186,7 +184,7 @@ public class JtaAutoConfigurationTests {
 		this.context.refresh();
 
 		File epochFile = new File("target/transaction-logs/custom0.epoch");
-		assertTrue(epochFile.isFile());
+		assertThat(epochFile.isFile()).isTrue();
 	}
 
 	@Test
@@ -200,8 +198,8 @@ public class JtaAutoConfigurationTests {
 		this.context.refresh();
 		AtomikosConnectionFactoryBean connectionFactory = this.context
 				.getBean(AtomikosConnectionFactoryBean.class);
-		assertThat(connectionFactory.getMinPoolSize(), is(equalTo(5)));
-		assertThat(connectionFactory.getMaxPoolSize(), is(equalTo(10)));
+		assertThat(connectionFactory.getMinPoolSize()).isEqualTo(5);
+		assertThat(connectionFactory.getMaxPoolSize()).isEqualTo(10);
 	}
 
 	@Test
@@ -215,8 +213,8 @@ public class JtaAutoConfigurationTests {
 		this.context.refresh();
 		PoolingConnectionFactoryBean connectionFactory = this.context
 				.getBean(PoolingConnectionFactoryBean.class);
-		assertThat(connectionFactory.getMinPoolSize(), is(equalTo(5)));
-		assertThat(connectionFactory.getMaxPoolSize(), is(equalTo(10)));
+		assertThat(connectionFactory.getMinPoolSize()).isEqualTo(5);
+		assertThat(connectionFactory.getMaxPoolSize()).isEqualTo(10);
 	}
 
 	@Test
@@ -230,8 +228,8 @@ public class JtaAutoConfigurationTests {
 		this.context.refresh();
 		AtomikosDataSourceBean dataSource = this.context
 				.getBean(AtomikosDataSourceBean.class);
-		assertThat(dataSource.getMinPoolSize(), is(equalTo(5)));
-		assertThat(dataSource.getMaxPoolSize(), is(equalTo(10)));
+		assertThat(dataSource.getMinPoolSize()).isEqualTo(5);
+		assertThat(dataSource.getMaxPoolSize()).isEqualTo(10);
 	}
 
 	@Test
@@ -245,8 +243,38 @@ public class JtaAutoConfigurationTests {
 		this.context.refresh();
 		PoolingDataSourceBean dataSource = this.context
 				.getBean(PoolingDataSourceBean.class);
-		assertThat(dataSource.getMinPoolSize(), is(equalTo(5)));
-		assertThat(dataSource.getMaxPoolSize(), is(equalTo(10)));
+		assertThat(dataSource.getMinPoolSize()).isEqualTo(5);
+		assertThat(dataSource.getMaxPoolSize()).isEqualTo(10);
+	}
+
+	@Test
+	public void atomikosCustomizeJtaTransactionManagerUsingProperties() throws Exception {
+		this.context = new AnnotationConfigApplicationContext();
+		EnvironmentTestUtils.addEnvironment(this.context,
+				"spring.transaction.default-timeout:30",
+				"spring.transaction.rollback-on-commit-failure:true");
+		this.context.register(AtomikosJtaConfiguration.class,
+				TransactionAutoConfiguration.class);
+		this.context.refresh();
+		JtaTransactionManager transactionManager = this.context
+				.getBean(JtaTransactionManager.class);
+		assertThat(transactionManager.getDefaultTimeout()).isEqualTo(30);
+		assertThat(transactionManager.isRollbackOnCommitFailure()).isTrue();
+	}
+
+	@Test
+	public void bitronixCustomizeJtaTransactionManagerUsingProperties() throws Exception {
+		this.context = new AnnotationConfigApplicationContext();
+		EnvironmentTestUtils.addEnvironment(this.context,
+				"spring.transaction.default-timeout:30",
+				"spring.transaction.rollback-on-commit-failure:true");
+		this.context.register(BitronixJtaConfiguration.class,
+				TransactionAutoConfiguration.class);
+		this.context.refresh();
+		JtaTransactionManager transactionManager = this.context
+				.getBean(JtaTransactionManager.class);
+		assertThat(transactionManager.getDefaultTimeout()).isEqualTo(30);
+		assertThat(transactionManager.isRollbackOnCommitFailure()).isTrue();
 	}
 
 	@Configuration
@@ -288,6 +316,7 @@ public class JtaAutoConfigurationTests {
 			XADataSource dataSource = mock(XADataSource.class);
 			return wrapper.wrapDataSource(dataSource);
 		}
+
 	}
 
 }

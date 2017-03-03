@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import javax.annotation.PostConstruct;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
@@ -36,7 +37,7 @@ public class SampleLogbackApplication {
 	}
 
 	public static void main(String[] args) throws Exception {
-		SpringApplication.run(SampleLogbackApplication.class, args);
+		SpringApplication.run(SampleLogbackApplication.class, args).close();
 	}
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,16 +27,17 @@ import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.message.BasicHeader;
-import org.hamcrest.Matcher;
+import org.json.JSONException;
 import org.json.JSONObject;
 import org.mockito.ArgumentMatcher;
+
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.util.StreamUtils;
 
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.isA;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Matchers.argThat;
-import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -87,14 +88,14 @@ public abstract class AbstractHttpClientMockTests {
 		CloseableHttpResponse response = mock(CloseableHttpResponse.class);
 		mockHttpEntity(response, request.content, request.contentType);
 		mockStatus(response, 200);
-		String header = (request.fileName != null ? contentDispositionValue(request.fileName)
-				: null);
+		String header = (request.fileName != null
+				? contentDispositionValue(request.fileName) : null);
 		mockHttpHeader(response, "Content-Disposition", header);
 		given(this.http.execute(argThat(getForNonMetadata()))).willReturn(response);
 	}
 
 	protected void mockProjectGenerationError(int status, String message)
-			throws IOException {
+			throws IOException, JSONException {
 		// Required for project generation as the metadata is read first
 		mockSuccessfulMetadataGet(false);
 		CloseableHttpResponse response = mock(CloseableHttpResponse.class);
@@ -104,7 +105,8 @@ public abstract class AbstractHttpClientMockTests {
 		given(this.http.execute(isA(HttpGet.class))).willReturn(response);
 	}
 
-	protected void mockMetadataGetError(int status, String message) throws IOException {
+	protected void mockMetadataGetError(int status, String message)
+			throws IOException, JSONException {
 		CloseableHttpResponse response = mock(CloseableHttpResponse.class);
 		mockHttpEntity(response, createJsonError(status, message).getBytes(),
 				"application/json");
@@ -117,8 +119,8 @@ public abstract class AbstractHttpClientMockTests {
 		try {
 			HttpEntity entity = mock(HttpEntity.class);
 			given(entity.getContent()).willReturn(new ByteArrayInputStream(content));
-			Header contentTypeHeader = contentType != null ? new BasicHeader(
-					"Content-Type", contentType) : null;
+			Header contentTypeHeader = contentType != null
+					? new BasicHeader("Content-Type", contentType) : null;
 			given(entity.getContentType()).willReturn(contentTypeHeader);
 			given(response.getEntity()).willReturn(entity);
 			return entity;
@@ -140,14 +142,14 @@ public abstract class AbstractHttpClientMockTests {
 		given(response.getFirstHeader(headerName)).willReturn(header);
 	}
 
-	private Matcher<HttpGet> getForMetadata(boolean serviceCapabilities) {
+	private ArgumentMatcher<HttpGet> getForMetadata(boolean serviceCapabilities) {
 		if (!serviceCapabilities) {
 			return new HasAcceptHeader(InitializrService.ACCEPT_META_DATA, true);
 		}
 		return new HasAcceptHeader(InitializrService.ACCEPT_SERVICE_CAPABILITIES, true);
 	}
 
-	private Matcher<HttpGet> getForNonMetadata() {
+	private ArgumentMatcher<HttpGet> getForNonMetadata() {
 		return new HasAcceptHeader(InitializrService.ACCEPT_META_DATA, false);
 	}
 
@@ -155,7 +157,7 @@ public abstract class AbstractHttpClientMockTests {
 		return "attachment; filename=\"" + fileName + "\"";
 	}
 
-	private String createJsonError(int status, String message) {
+	private String createJsonError(int status, String message) throws JSONException {
 		JSONObject json = new JSONObject();
 		json.put("status", status);
 		if (message != null) {
@@ -185,7 +187,7 @@ public abstract class AbstractHttpClientMockTests {
 
 	}
 
-	private static class HasAcceptHeader extends ArgumentMatcher<HttpGet> {
+	private static class HasAcceptHeader implements ArgumentMatcher<HttpGet> {
 
 		private final String value;
 
@@ -197,11 +199,10 @@ public abstract class AbstractHttpClientMockTests {
 		}
 
 		@Override
-		public boolean matches(Object argument) {
-			if (!(argument instanceof HttpGet)) {
+		public boolean matches(HttpGet get) {
+			if (get == null) {
 				return false;
 			}
-			HttpGet get = (HttpGet) argument;
 			Header acceptHeader = get.getFirstHeader(HttpHeaders.ACCEPT);
 			if (this.shouldMatch) {
 				return acceptHeader != null && this.value.equals(acceptHeader.getValue());

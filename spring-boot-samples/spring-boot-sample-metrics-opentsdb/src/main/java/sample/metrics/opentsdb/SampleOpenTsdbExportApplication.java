@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,28 +17,31 @@
 package sample.metrics.opentsdb;
 
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.actuate.autoconfigure.ExportMetricWriter;
 import org.springframework.boot.actuate.metrics.opentsdb.DefaultOpenTsdbNamingStrategy;
-import org.springframework.boot.actuate.metrics.opentsdb.OpenTsdbMetricWriter;
-import org.springframework.boot.actuate.metrics.opentsdb.OpenTsdbNamingStrategy;
-import org.springframework.boot.actuate.metrics.writer.MetricWriter;
+import org.springframework.boot.actuate.metrics.opentsdb.OpenTsdbGaugeWriter;
+import org.springframework.boot.actuate.metrics.writer.GaugeWriter;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 
 @SpringBootApplication
+@EnableConfigurationProperties(HelloWorldProperties.class)
 public class SampleOpenTsdbExportApplication {
 
 	@Bean
 	@ConfigurationProperties("metrics.export")
-	public MetricWriter openTsdbMetricWriter() {
-		OpenTsdbMetricWriter writer = new OpenTsdbMetricWriter();
+	@ExportMetricWriter
+	public GaugeWriter openTsdbMetricWriter() {
+		OpenTsdbGaugeWriter writer = new OpenTsdbGaugeWriter();
 		writer.setNamingStrategy(namingStrategy());
 		return writer;
 	}
 
 	@Bean
 	@ConfigurationProperties("metrics.names")
-	public OpenTsdbNamingStrategy namingStrategy() {
+	public DefaultOpenTsdbNamingStrategy namingStrategy() {
 		return new DefaultOpenTsdbNamingStrategy();
 	}
 

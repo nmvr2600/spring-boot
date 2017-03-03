@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package org.springframework.boot.maven;
 
+import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.net.ConnectException;
@@ -34,6 +35,7 @@ import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.plugins.annotations.ResolutionScope;
+
 import org.springframework.boot.loader.tools.JavaExecutable;
 import org.springframework.boot.loader.tools.RunProcess;
 
@@ -86,9 +88,9 @@ public class StartMojo extends AbstractRunMojo {
 	private final Object lock = new Object();
 
 	@Override
-	protected void runWithForkedJvm(List<String> args) throws MojoExecutionException,
-			MojoFailureException {
-		RunProcess runProcess = runProcess(args);
+	protected void runWithForkedJvm(File workingDirectory, List<String> args)
+			throws MojoExecutionException, MojoFailureException {
+		RunProcess runProcess = runProcess(workingDirectory, args);
 		try {
 			waitForSpringApplication();
 		}
@@ -102,9 +104,11 @@ public class StartMojo extends AbstractRunMojo {
 		}
 	}
 
-	private RunProcess runProcess(List<String> args) throws MojoExecutionException {
+	private RunProcess runProcess(File workingDirectory, List<String> args)
+			throws MojoExecutionException {
 		try {
-			RunProcess runProcess = new RunProcess(new JavaExecutable().toString());
+			RunProcess runProcess = new RunProcess(workingDirectory,
+					new JavaExecutable().toString());
 			runProcess.run(false, args.toArray(new String[args.size()]));
 			return runProcess;
 		}
@@ -118,8 +122,8 @@ public class StartMojo extends AbstractRunMojo {
 		RunArguments applicationArguments = super.resolveApplicationArguments();
 		applicationArguments.getArgs().addLast(ENABLE_MBEAN_PROPERTY);
 		if (isFork()) {
-			applicationArguments.getArgs().addLast(
-					JMX_NAME_PROPERTY_PREFIX + this.jmxName);
+			applicationArguments.getArgs()
+					.addLast(JMX_NAME_PROPERTY_PREFIX + this.jmxName);
 		}
 		return applicationArguments;
 	}
@@ -142,8 +146,8 @@ public class StartMojo extends AbstractRunMojo {
 	protected void runWithMavenJvm(String startClassName, String... arguments)
 			throws MojoExecutionException {
 		IsolatedThreadGroup threadGroup = new IsolatedThreadGroup(startClassName);
-		Thread launchThread = new Thread(threadGroup, new LaunchRunner(startClassName,
-				arguments), startClassName + ".main()");
+		Thread launchThread = new Thread(threadGroup,
+				new LaunchRunner(startClassName, arguments), startClassName + ".main()");
 		launchThread.setContextClassLoader(new URLClassLoader(getClassPathUrls()));
 		launchThread.start();
 		waitForSpringApplication(this.wait, this.maxAttempts);
@@ -166,6 +170,7 @@ public class StartMojo extends AbstractRunMojo {
 					this.lock.wait(wait);
 				}
 				catch (InterruptedException ex) {
+					Thread.currentThread().interrupt();
 					throw new IllegalStateException(
 							"Interrupted while waiting for Spring Boot app to start.");
 				}
@@ -176,10 +181,10 @@ public class StartMojo extends AbstractRunMojo {
 						+ (wait * maxAttempts) + "ms");
 	}
 
-	private void waitForSpringApplication() throws MojoFailureException,
-			MojoExecutionException {
+	private void waitForSpringApplication()
+			throws MojoFailureException, MojoExecutionException {
 		try {
-			if (Boolean.TRUE.equals(isFork())) {
+			if (isFork()) {
 				waitForForkedSpringApplication();
 			}
 			else {
@@ -196,8 +201,8 @@ public class StartMojo extends AbstractRunMojo {
 		}
 	}
 
-	private void waitForForkedSpringApplication() throws IOException,
-			MojoFailureException, MojoExecutionException {
+	private void waitForForkedSpringApplication()
+			throws IOException, MojoFailureException, MojoExecutionException {
 		try {
 			getLog().debug("Connecting to local MBeanServer at port " + this.jmxPort);
 			JMXConnector connector = execute(this.wait, this.maxAttempts,
@@ -220,8 +225,8 @@ public class StartMojo extends AbstractRunMojo {
 			throw ex;
 		}
 		catch (Exception ex) {
-			throw new MojoExecutionException("Failed to connect to MBean server at port "
-					+ this.jmxPort, ex);
+			throw new MojoExecutionException(
+					"Failed to connect to MBean server at port " + this.jmxPort, ex);
 		}
 	}
 
@@ -274,6 +279,7 @@ public class StartMojo extends AbstractRunMojo {
 					this.lock.wait(wait);
 				}
 				catch (InterruptedException ex) {
+					Thread.currentThread().interrupt();
 					throw new IllegalStateException(
 							"Interrupted while waiting for Spring Boot app to start.");
 				}
@@ -309,8 +315,8 @@ public class StartMojo extends AbstractRunMojo {
 		}
 
 		private boolean hasCauseWithType(Throwable t, Class<? extends Exception> type) {
-			return type.isAssignableFrom(t.getClass()) || t.getCause() != null
-					&& hasCauseWithType(t.getCause(), type);
+			return type.isAssignableFrom(t.getClass())
+					|| t.getCause() != null && hasCauseWithType(t.getCause(), type);
 		}
 
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,7 +32,6 @@ import java.util.Set;
  * @author Juergen Hoeller
  * @author Rob Harrop
  * @author Dave Syer
- *
  * @see System#getProperty(String)
  */
 public abstract class SystemPropertyUtils {
@@ -96,8 +95,8 @@ public abstract class SystemPropertyUtils {
 		while (startIndex != -1) {
 			int endIndex = findPlaceholderEndIndex(buf, startIndex);
 			if (endIndex != -1) {
-				String placeholder = buf.substring(
-						startIndex + PLACEHOLDER_PREFIX.length(), endIndex);
+				String placeholder = buf
+						.substring(startIndex + PLACEHOLDER_PREFIX.length(), endIndex);
 				String originalPlaceholder = placeholder;
 				if (!visitedPlaceholders.add(originalPlaceholder)) {
 					throw new IllegalArgumentException("Circular placeholder reference '"
@@ -115,9 +114,10 @@ public abstract class SystemPropertyUtils {
 					if (separatorIndex != -1) {
 						String actualPlaceholder = placeholder.substring(0,
 								separatorIndex);
-						String defaultValue = placeholder.substring(separatorIndex
-								+ VALUE_SEPARATOR.length());
-						propVal = resolvePlaceholder(properties, value, actualPlaceholder);
+						String defaultValue = placeholder
+								.substring(separatorIndex + VALUE_SEPARATOR.length());
+						propVal = resolvePlaceholder(properties, value,
+								actualPlaceholder);
 						if (propVal == null) {
 							propVal = defaultValue;
 						}
@@ -135,8 +135,8 @@ public abstract class SystemPropertyUtils {
 				}
 				else {
 					// Proceed with unprocessed value.
-					startIndex = buf.indexOf(PLACEHOLDER_PREFIX, endIndex
-							+ PLACEHOLDER_SUFFIX.length());
+					startIndex = buf.indexOf(PLACEHOLDER_PREFIX,
+							endIndex + PLACEHOLDER_SUFFIX.length());
 				}
 				visitedPlaceholders.remove(originalPlaceholder);
 			}
@@ -184,11 +184,11 @@ public abstract class SystemPropertyUtils {
 			}
 			if (propVal == null) {
 				// Try with underscores.
-				propVal = System.getenv(key.replace(".", "_"));
+				propVal = System.getenv(key.replace('.', '_'));
 			}
 			if (propVal == null) {
 				// Try uppercase with underscores as well.
-				propVal = System.getenv(key.toUpperCase().replace(".", "_"));
+				propVal = System.getenv(key.toUpperCase().replace('.', '_'));
 			}
 			if (propVal != null) {
 				return propVal;

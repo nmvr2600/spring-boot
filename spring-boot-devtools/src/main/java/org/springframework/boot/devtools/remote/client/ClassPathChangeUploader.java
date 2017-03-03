@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package org.springframework.boot.devtools.remote.client;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
+import java.net.ConnectException;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -29,6 +30,7 @@ import java.util.Map;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+
 import org.springframework.boot.devtools.classpath.ClassPathChangedEvent;
 import org.springframework.boot.devtools.filewatch.ChangedFile;
 import org.springframework.boot.devtools.filewatch.ChangedFiles;
@@ -50,12 +52,14 @@ import org.springframework.util.FileCopyUtils;
  * Listens and pushes any classpath updates to a remote endpoint.
  *
  * @author Phillip Webb
+ * @author Andy Wilkinson
  * @since 1.3.0
  */
-public class ClassPathChangeUploader implements
-		ApplicationListener<ClassPathChangedEvent> {
+public class ClassPathChangeUploader
+		implements ApplicationListener<ClassPathChangedEvent> {
 
 	private static final Map<ChangedFile.Type, ClassLoaderFile.Kind> TYPE_MAPPINGS;
+
 	static {
 		Map<ChangedFile.Type, ClassLoaderFile.Kind> map = new HashMap<ChangedFile.Type, ClassLoaderFile.Kind>();
 		map.put(ChangedFile.Type.ADD, ClassLoaderFile.Kind.ADDED);
@@ -89,27 +93,49 @@ public class ClassPathChangeUploader implements
 	public void onApplicationEvent(ClassPathChangedEvent event) {
 		try {
 			ClassLoaderFiles classLoaderFiles = getClassLoaderFiles(event);
-			ClientHttpRequest request = this.requestFactory.createRequest(this.uri,
-					HttpMethod.POST);
 			byte[] bytes = serialize(classLoaderFiles);
-			HttpHeaders headers = request.getHeaders();
-			headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
-			headers.setContentLength(bytes.length);
-			FileCopyUtils.copy(bytes, request.getBody());
-			logUpload(classLoaderFiles);
-			ClientHttpResponse response = request.execute();
-			Assert.state(response.getStatusCode() == HttpStatus.OK, "Unexpected "
-					+ response.getStatusCode() + " response uploading class files");
+			performUpload(classLoaderFiles, bytes);
 		}
 		catch (IOException ex) {
 			throw new IllegalStateException(ex);
 		}
 	}
 
+	private void performUpload(ClassLoaderFiles classLoaderFiles, byte[] bytes)
+			throws IOException {
+		try {
+			while (true) {
+				try {
+					ClientHttpRequest request = this.requestFactory
+							.createRequest(this.uri, HttpMethod.POST);
+					HttpHeaders headers = request.getHeaders();
+					headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+					headers.setContentLength(bytes.length);
+					FileCopyUtils.copy(bytes, request.getBody());
+					ClientHttpResponse response = request.execute();
+					Assert.state(response.getStatusCode() == HttpStatus.OK,
+							"Unexpected " + response.getStatusCode()
+									+ " response uploading class files");
+					logUpload(classLoaderFiles);
+					return;
+				}
+				catch (ConnectException ex) {
+					logger.warn("Failed to connect when uploading to " + this.uri
+							+ ". Upload will be retried in 2 seconds");
+					Thread.sleep(2000);
+				}
+			}
+		}
+		catch (InterruptedException ex) {
+			Thread.currentThread().interrupt();
+			throw new IllegalStateException(ex);
+		}
+	}
+
 	private void logUpload(ClassLoaderFiles classLoaderFiles) {
 		int size = classLoaderFiles.size();
-		logger.info("Uploaded " + size + " class "
-				+ (size == 1 ? "resource" : "resources"));
+		logger.info(
+				"Uploaded " + size + " class " + (size == 1 ? "resource" : "resources"));
 	}
 
 	private byte[] serialize(ClassLoaderFiles classLoaderFiles) throws IOException {
@@ -133,10 +159,11 @@ public class ClassPathChangeUploader implements
 		return files;
 	}
 
-	private ClassLoaderFile asClassLoaderFile(ChangedFile changedFile) throws IOException {
+	private ClassLoaderFile asClassLoaderFile(ChangedFile changedFile)
+			throws IOException {
 		ClassLoaderFile.Kind kind = TYPE_MAPPINGS.get(changedFile.getType());
-		byte[] bytes = (kind == Kind.DELETED ? null : FileCopyUtils
-				.copyToByteArray(changedFile.getFile()));
+		byte[] bytes = (kind == Kind.DELETED ? null
+				: FileCopyUtils.copyToByteArray(changedFile.getFile()));
 		long lastModified = (kind == Kind.DELETED ? System.currentTimeMillis()
 				: changedFile.getFile().lastModified());
 		return new ClassLoaderFile(kind, lastModified, bytes);

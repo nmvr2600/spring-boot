@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2014 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,17 +18,17 @@ package org.springframework.boot.cli.command.install;
 
 import java.util.List;
 
+import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
+
 import org.springframework.boot.cli.command.Command;
 import org.springframework.boot.cli.command.OptionParsingCommand;
 import org.springframework.boot.cli.command.options.CompilerOptionHandler;
 import org.springframework.boot.cli.command.status.ExitStatus;
 import org.springframework.boot.cli.util.Log;
 
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
-
 /**
- * {@link Command} to uninstall dependencies from the CLI's lib directory.
+ * {@link Command} to uninstall dependencies from the CLI's lib/ext directory.
  *
  * @author Dave Syer
  * @author Andy Wilkinson
@@ -37,7 +37,7 @@ import joptsimple.OptionSpec;
 public class UninstallCommand extends OptionParsingCommand {
 
 	public UninstallCommand() {
-		super("uninstall", "Uninstall dependencies from the lib directory",
+		super("uninstall", "Uninstall dependencies from the lib/ext directory",
 				new UninstallOptionHandler());
 	}
 

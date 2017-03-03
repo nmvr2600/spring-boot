@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ import javax.servlet.annotation.WebFilter;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.support.BeanDefinitionBuilder;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
-import org.springframework.boot.context.embedded.FilterRegistrationBean;
+import org.springframework.context.annotation.ScannedGenericBeanDefinition;
 import org.springframework.util.StringUtils;
 
 /**
@@ -41,7 +41,8 @@ class WebFilterHandler extends ServletComponentHandler {
 	}
 
 	@Override
-	public void doHandle(Map<String, Object> attributes, BeanDefinition beanDefinition,
+	public void doHandle(Map<String, Object> attributes,
+			ScannedGenericBeanDefinition beanDefinition,
 			BeanDefinitionRegistry registry) {
 		BeanDefinitionBuilder builder = BeanDefinitionBuilder
 				.rootBeanDefinition(FilterRegistrationBean.class);
@@ -57,7 +58,8 @@ class WebFilterHandler extends ServletComponentHandler {
 		registry.registerBeanDefinition(name, builder.getBeanDefinition());
 	}
 
-	private EnumSet<DispatcherType> extractDispatcherTypes(Map<String, Object> attributes) {
+	private EnumSet<DispatcherType> extractDispatcherTypes(
+			Map<String, Object> attributes) {
 		DispatcherType[] dispatcherTypes = (DispatcherType[]) attributes
 				.get("dispatcherTypes");
 		if (dispatcherTypes.length == 0) {
@@ -72,8 +74,8 @@ class WebFilterHandler extends ServletComponentHandler {
 
 	private String determineName(Map<String, Object> attributes,
 			BeanDefinition beanDefinition) {
-		return (String) (StringUtils.hasText((String) attributes.get("filterName")) ? attributes
-				.get("filterName") : beanDefinition.getBeanClassName());
+		return (String) (StringUtils.hasText((String) attributes.get("filterName"))
+				? attributes.get("filterName") : beanDefinition.getBeanClassName());
 	}
 
 }

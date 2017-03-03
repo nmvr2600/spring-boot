@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2015 the original author or authors.
+ * Copyright 2012-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,23 +19,26 @@ package org.springframework.boot.actuate.endpoint.mvc;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.actuate.autoconfigure.AuditAutoConfiguration;
 import org.springframework.boot.actuate.autoconfigure.EndpointWebMvcAutoConfiguration;
 import org.springframework.boot.actuate.autoconfigure.JolokiaAutoConfiguration;
-import org.springframework.boot.actuate.autoconfigure.ManagementServerPropertiesAutoConfiguration;
 import org.springframework.boot.actuate.endpoint.mvc.JolokiaMvcEndpointContextPathTests.Config;
 import org.springframework.boot.actuate.endpoint.mvc.JolokiaMvcEndpointContextPathTests.ContextPathListener;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
 import org.springframework.boot.autoconfigure.web.HttpMessageConvertersAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.test.EnvironmentTestUtils;
-import org.springframework.boot.test.SpringApplicationConfiguration;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.util.EnvironmentTestUtils;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.web.WebAppConfiguration;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
@@ -47,12 +50,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
+ * Tests for {@link JolokiaMvcEndpoint} with a custom management context path.
+ *
  * @author Christian Dupuis
  * @author Dave Syer
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@SpringApplicationConfiguration(classes = { Config.class }, initializers = ContextPathListener.class)
-@WebAppConfiguration
+@RunWith(SpringRunner.class)
+@SpringBootTest
+@TestPropertySource(properties = "management.security.enabled=false")
+@ContextConfiguration(classes = {
+		Config.class }, initializers = ContextPathListener.class)
+@DirtiesContext
 public class JolokiaMvcEndpointContextPathTests {
 
 	@Autowired
@@ -63,8 +71,8 @@ public class JolokiaMvcEndpointContextPathTests {
 	@Before
 	public void setUp() {
 		this.mvc = MockMvcBuilders.webAppContextSetup(this.context).build();
-		EnvironmentTestUtils.addEnvironment(
-				(ConfigurableApplicationContext) this.context, "foo:bar");
+		EnvironmentTestUtils.addEnvironment((ConfigurableApplicationContext) this.context,
+				"foo:bar");
 	}
 
 	@Test
@@ -77,19 +85,21 @@ public class JolokiaMvcEndpointContextPathTests {
 	@Configuration
 	@EnableConfigurationProperties
 	@EnableWebMvc
-	@Import({ JacksonAutoConfiguration.class,
+	@Import({ JacksonAutoConfiguration.class, AuditAutoConfiguration.class,
 			HttpMessageConvertersAutoConfiguration.class,
-			EndpointWebMvcAutoConfiguration.class, JolokiaAutoConfiguration.class,
-			ManagementServerPropertiesAutoConfiguration.class })
+			EndpointWebMvcAutoConfiguration.class, JolokiaAutoConfiguration.class })
 	public static class Config {
+
 	}
 
-	public static class ContextPathListener implements
-			ApplicationContextInitializer<ConfigurableApplicationContext> {
+	public static class ContextPathListener
+			implements ApplicationContextInitializer<ConfigurableApplicationContext> {
+
 		@Override
 		public void initialize(ConfigurableApplicationContext context) {
 			EnvironmentTestUtils.addEnvironment(context, "management.contextPath:/admin");
 		}
 
 	}
+
 }

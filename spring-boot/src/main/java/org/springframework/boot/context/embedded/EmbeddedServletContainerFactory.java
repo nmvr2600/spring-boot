@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2014 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,33 +17,36 @@
 package org.springframework.boot.context.embedded;
 
 import org.apache.catalina.core.ApplicationContext;
+
 import org.springframework.boot.context.embedded.jetty.JettyEmbeddedServletContainerFactory;
 import org.springframework.boot.context.embedded.tomcat.TomcatEmbeddedServletContainerFactory;
+import org.springframework.boot.web.servlet.ServletContextInitializer;
 
 /**
- * Factory interface that can be used to create {@link EmbeddedServletContainer}s.
+ * Factory interface that can be used to create {@link EmbeddedWebServer}s.
  * Implementations are encouraged to extend
  * {@link AbstractEmbeddedServletContainerFactory} when possible.
  *
  * @author Phillip Webb
- * @see EmbeddedServletContainer
+ * @see EmbeddedWebServer
  * @see AbstractEmbeddedServletContainerFactory
  * @see JettyEmbeddedServletContainerFactory
  * @see TomcatEmbeddedServletContainerFactory
  */
+@FunctionalInterface
 public interface EmbeddedServletContainerFactory {
 
 	/**
-	 * Gets a new fully configured but paused {@link EmbeddedServletContainer} instance.
+	 * Gets a new fully configured but paused {@link EmbeddedWebServer} instance.
 	 * Clients should not be able to connect to the returned server until
-	 * {@link EmbeddedServletContainer#start()} is called (which happens when the
+	 * {@link EmbeddedWebServer#start()} is called (which happens when the
 	 * {@link ApplicationContext} has been fully refreshed).
 	 * @param initializers {@link ServletContextInitializer}s that should be applied as
 	 * the container starts
-	 * @return a fully configured and started {@link EmbeddedServletContainer}
-	 * @see EmbeddedServletContainer#stop()
+	 * @return a fully configured and started {@link EmbeddedWebServer}
+	 * @see EmbeddedWebServer#stop()
 	 */
-	EmbeddedServletContainer getEmbeddedServletContainer(
+	EmbeddedWebServer getEmbeddedServletContainer(
 			ServletContextInitializer... initializers);
 
 }

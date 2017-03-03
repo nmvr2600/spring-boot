@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package org.springframework.boot.bind;
 
 import java.beans.PropertyDescriptor;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
@@ -25,8 +26,8 @@ import java.util.Set;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+
 import org.springframework.beans.BeanUtils;
-import org.springframework.beans.MutablePropertyValues;
 import org.springframework.beans.PropertyValues;
 import org.springframework.beans.factory.FactoryBean;
 import org.springframework.beans.factory.InitializingBean;
@@ -47,25 +48,22 @@ import org.springframework.validation.Validator;
  * them to an object of a specified type and then optionally running a {@link Validator}
  * over it.
  *
- * @param <T> The target type
+ * @param <T> the target type
  * @author Dave Syer
  */
-public class PropertiesConfigurationFactory<T> implements FactoryBean<T>,
-		MessageSourceAware, InitializingBean {
+public class PropertiesConfigurationFactory<T>
+		implements FactoryBean<T>, MessageSourceAware, InitializingBean {
 
 	private static final char[] EXACT_DELIMITERS = { '_', '.', '[' };
 
 	private static final char[] TARGET_NAME_DELIMITERS = { '_', '.' };
 
-	private final Log logger = LogFactory.getLog(getClass());
+	private static final Log logger = LogFactory
+			.getLog(PropertiesConfigurationFactory.class);
 
 	private boolean ignoreUnknownFields = true;
 
 	private boolean ignoreInvalidFields;
-
-	private boolean exceptionIfInvalid = true;
-
-	private Properties properties;
 
 	private PropertySources propertySources;
 
@@ -83,13 +81,15 @@ public class PropertiesConfigurationFactory<T> implements FactoryBean<T>,
 
 	private ConversionService conversionService;
 
+	private boolean resolvePlaceholders = true;
+
 	/**
 	 * Create a new {@link PropertiesConfigurationFactory} instance.
 	 * @param target the target object to bind too
 	 * @see #PropertiesConfigurationFactory(Class)
 	 */
 	public PropertiesConfigurationFactory(T target) {
-		Assert.notNull(target);
+		Assert.notNull(target, "Target object must not be null");
 		this.target = target;
 	}
 
@@ -100,8 +100,8 @@ public class PropertiesConfigurationFactory<T> implements FactoryBean<T>,
 	 */
 	@SuppressWarnings("unchecked")
 	public PropertiesConfigurationFactory(Class<?> type) {
-		Assert.notNull(type);
-		this.target = (T) BeanUtils.instantiate(type);
+		Assert.notNull(type, "Target type must not be null");
+		this.target = (T) BeanUtils.instantiateClass(type);
 	}
 
 	/**
@@ -157,14 +157,6 @@ public class PropertiesConfigurationFactory<T> implements FactoryBean<T>,
 	}
 
 	/**
-	 * Set the properties.
-	 * @param properties the properties
-	 */
-	public void setProperties(Properties properties) {
-		this.properties = properties;
-	}
-
-	/**
 	 * Set the property sources.
 	 * @param propertySources the property sources
 	 */
@@ -189,12 +181,12 @@ public class PropertiesConfigurationFactory<T> implements FactoryBean<T>,
 	}
 
 	/**
-	 * Set a flag to indicate that an exception should be raised if a Validator is
-	 * available and validation fails.
-	 * @param exceptionIfInvalid the flag to set
+	 * Flag to indicate that placeholders should be replaced during binding. Default is
+	 * true.
+	 * @param resolvePlaceholders flag value
 	 */
-	public void setExceptionIfInvalid(boolean exceptionIfInvalid) {
-		this.exceptionIfInvalid = exceptionIfInvalid;
+	public void setResolvePlaceholders(boolean resolvePlaceholders) {
+		this.resolvePlaceholders = resolvePlaceholders;
 	}
 
 	@Override
@@ -224,55 +216,50 @@ public class PropertiesConfigurationFactory<T> implements FactoryBean<T>,
 	}
 
 	public void bindPropertiesToTarget() throws BindException {
-		Assert.state(this.properties != null || this.propertySources != null,
-				"Properties or propertySources should not be null");
-		try {
-			if (this.logger.isTraceEnabled()) {
-				if (this.properties != null) {
-					this.logger.trace("Properties:\n" + this.properties);
-				}
-				else {
-					this.logger.trace("Property Sources: " + this.propertySources);
-				}
-			}
-			this.hasBeenBound = true;
-			doBindPropertiesToTarget();
+		Assert.state(this.propertySources != null, "PropertySources should not be null");
+		if (logger.isTraceEnabled()) {
+			logger.trace("Property Sources: " + this.propertySources);
+
 		}
-		catch (BindException ex) {
-			if (this.exceptionIfInvalid) {
-				throw ex;
-			}
-			this.logger.error("Failed to load Properties validation bean. "
-					+ "Your Properties may be invalid.", ex);
-		}
+		this.hasBeenBound = true;
+		doBindPropertiesToTarget();
 	}
 
 	private void doBindPropertiesToTarget() throws BindException {
-		RelaxedDataBinder dataBinder = (this.targetName != null ? new RelaxedDataBinder(
-				this.target, this.targetName) : new RelaxedDataBinder(this.target));
-		if (this.validator != null) {
+		RelaxedDataBinder dataBinder = (this.targetName != null
+				? new RelaxedDataBinder(this.target, this.targetName)
+				: new RelaxedDataBinder(this.target));
+		if (this.validator != null
+				&& this.validator.supports(dataBinder.getTarget().getClass())) {
 			dataBinder.setValidator(this.validator);
 		}
 		if (this.conversionService != null) {
 			dataBinder.setConversionService(this.conversionService);
 		}
+		dataBinder.setAutoGrowCollectionLimit(Integer.MAX_VALUE);
 		dataBinder.setIgnoreNestedProperties(this.ignoreNestedProperties);
 		dataBinder.setIgnoreInvalidFields(this.ignoreInvalidFields);
 		dataBinder.setIgnoreUnknownFields(this.ignoreUnknownFields);
 		customizeBinder(dataBinder);
-		Set<String> names = getNames();
-		PropertyValues propertyValues = getPropertyValues(names);
+		Iterable<String> relaxedTargetNames = getRelaxedTargetNames();
+		Set<String> names = getNames(relaxedTargetNames);
+		PropertyValues propertyValues = getPropertySourcesPropertyValues(names,
+				relaxedTargetNames);
 		dataBinder.bind(propertyValues);
 		if (this.validator != null) {
-			validate(dataBinder);
+			dataBinder.validate();
 		}
+		checkForBindingErrors(dataBinder);
 	}
 
-	private Set<String> getNames() {
+	private Iterable<String> getRelaxedTargetNames() {
+		return (this.target != null && StringUtils.hasLength(this.targetName)
+				? new RelaxedNames(this.targetName) : null);
+	}
+
+	private Set<String> getNames(Iterable<String> prefixes) {
 		Set<String> names = new LinkedHashSet<String>();
 		if (this.target != null) {
-			Iterable<String> prefixes = (StringUtils.hasLength(this.targetName) ? new RelaxedNames(
-					this.targetName) : null);
 			PropertyDescriptor[] descriptors = BeanUtils
 					.getPropertyDescriptors(this.target.getClass());
 			for (PropertyDescriptor descriptor : descriptors) {
@@ -298,30 +285,31 @@ public class PropertiesConfigurationFactory<T> implements FactoryBean<T>,
 		return names;
 	}
 
-	private PropertyValues getPropertyValues(Set<String> names) {
-		if (this.properties != null) {
-			return new MutablePropertyValues(this.properties);
-		}
-		return getPropertySourcesPropertyValues(names);
+	private PropertyValues getPropertySourcesPropertyValues(Set<String> names,
+			Iterable<String> relaxedTargetNames) {
+		PropertyNamePatternsMatcher includes = getPropertyNamePatternsMatcher(names,
+				relaxedTargetNames);
+		return new PropertySourcesPropertyValues(this.propertySources, names, includes,
+				this.resolvePlaceholders);
 	}
 
-	private PropertyValues getPropertySourcesPropertyValues(Set<String> names) {
-		PropertyNamePatternsMatcher includes = getPropertyNamePatternsMatcher(names);
-		return new PropertySourcesPropertyValues(this.propertySources, names, includes);
-	}
-
-	private PropertyNamePatternsMatcher getPropertyNamePatternsMatcher(Set<String> names) {
+	private PropertyNamePatternsMatcher getPropertyNamePatternsMatcher(Set<String> names,
+			Iterable<String> relaxedTargetNames) {
 		if (this.ignoreUnknownFields && !isMapTarget()) {
 			// Since unknown fields are ignored we can filter them out early to save
 			// unnecessary calls to the PropertySource.
 			return new DefaultPropertyNamePatternsMatcher(EXACT_DELIMITERS, true, names);
 		}
-		if (this.targetName != null) {
+		if (relaxedTargetNames != null) {
 			// We can filter properties to those starting with the target name, but
 			// we can't do a complete filter since we need to trigger the
 			// unknown fields check
+			Set<String> relaxedNames = new HashSet<String>();
+			for (String relaxedTargetName : relaxedTargetNames) {
+				relaxedNames.add(relaxedTargetName);
+			}
 			return new DefaultPropertyNamePatternsMatcher(TARGET_NAME_DELIMITERS, true,
-					this.targetName);
+					relaxedNames);
 		}
 		// Not ideal, we basically can't filter anything
 		return PropertyNamePatternsMatcher.ALL;
@@ -331,24 +319,24 @@ public class PropertiesConfigurationFactory<T> implements FactoryBean<T>,
 		return this.target != null && Map.class.isAssignableFrom(this.target.getClass());
 	}
 
-	private void validate(RelaxedDataBinder dataBinder) throws BindException {
-		dataBinder.validate();
+	private void checkForBindingErrors(RelaxedDataBinder dataBinder)
+			throws BindException {
 		BindingResult errors = dataBinder.getBindingResult();
 		if (errors.hasErrors()) {
-			this.logger.error("Properties configuration failed validation");
+			logger.error("Properties configuration failed validation");
 			for (ObjectError error : errors.getAllErrors()) {
-				this.logger.error(this.messageSource != null ? this.messageSource
-						.getMessage(error, Locale.getDefault()) + " (" + error + ")"
-						: error);
+				logger.error(
+						this.messageSource != null
+								? this.messageSource.getMessage(error,
+										Locale.getDefault()) + " (" + error + ")"
+								: error);
 			}
-			if (this.exceptionIfInvalid) {
-				throw new BindException(errors);
-			}
+			throw new BindException(errors);
 		}
 	}
 
 	/**
-	 * Customize the databinder.
+	 * Customize the data binder.
 	 * @param dataBinder the data binder that will be used to bind and validate
 	 */
 	protected void customizeBinder(DataBinder dataBinder) {

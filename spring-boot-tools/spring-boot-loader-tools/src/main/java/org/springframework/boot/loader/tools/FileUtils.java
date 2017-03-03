@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2015 the original author or authors.
+ * Copyright 2012-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -64,8 +64,8 @@ public abstract class FileUtils {
 	 */
 	public static String sha1Hash(File file) throws IOException {
 		try {
-			DigestInputStream inputStream = new DigestInputStream(new FileInputStream(
-					file), MessageDigest.getInstance("SHA-1"));
+			DigestInputStream inputStream = new DigestInputStream(
+					new FileInputStream(file), MessageDigest.getInstance("SHA-1"));
 			try {
 				byte[] buffer = new byte[4098];
 				while (inputStream.read(buffer) != -1) {
@@ -89,4 +89,5 @@ public abstract class FileUtils {
 		}
 		return hex.toString();
 	}
+
 }
