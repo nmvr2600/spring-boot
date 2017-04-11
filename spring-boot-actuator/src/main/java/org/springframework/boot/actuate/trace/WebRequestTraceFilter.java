@@ -25,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import javax.servlet.Filter;
 import javax.servlet.FilterChain;
@@ -38,7 +39,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import org.springframework.boot.actuate.trace.TraceProperties.Include;
-import org.springframework.boot.autoconfigure.web.ErrorAttributes;
+import org.springframework.boot.autoconfigure.web.servlet.error.ErrorAttributes;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -101,6 +102,7 @@ public class WebRequestTraceFilter extends OncePerRequestFilter implements Order
 	protected void doFilterInternal(HttpServletRequest request,
 			HttpServletResponse response, FilterChain filterChain)
 					throws ServletException, IOException {
+		long startTime = System.nanoTime();
 		Map<String, Object> trace = getTrace(request);
 		logTrace(request, trace);
 		int status = HttpStatus.INTERNAL_SERVER_ERROR.value();
@@ -109,6 +111,7 @@ public class WebRequestTraceFilter extends OncePerRequestFilter implements Order
 			status = response.getStatus();
 		}
 		finally {
+			addTimeTaken(trace, startTime);
 			enhanceTrace(trace, status == response.getStatus() ? response
 					: new CustomStatusResponseWrapper(response, status));
 			this.repository.add(trace);
@@ -120,8 +123,8 @@ public class WebRequestTraceFilter extends OncePerRequestFilter implements Order
 		Throwable exception = (Throwable) request
 				.getAttribute("javax.servlet.error.exception");
 		Principal userPrincipal = request.getUserPrincipal();
-		Map<String, Object> trace = new LinkedHashMap<String, Object>();
-		Map<String, Object> headers = new LinkedHashMap<String, Object>();
+		Map<String, Object> trace = new LinkedHashMap<>();
+		Map<String, Object> headers = new LinkedHashMap<>();
 		trace.put("method", request.getMethod());
 		trace.put("path", request.getRequestURI());
 		trace.put("headers", headers);
@@ -152,7 +155,7 @@ public class WebRequestTraceFilter extends OncePerRequestFilter implements Order
 	}
 
 	private Map<String, Object> getRequestHeaders(HttpServletRequest request) {
-		Map<String, Object> headers = new LinkedHashMap<String, Object>();
+		Map<String, Object> headers = new LinkedHashMap<>();
 		Set<String> excludedHeaders = getExcludeHeaders();
 		Enumeration<String> names = request.getHeaderNames();
 		while (names.hasMoreElements()) {
@@ -166,7 +169,7 @@ public class WebRequestTraceFilter extends OncePerRequestFilter implements Order
 	}
 
 	private Set<String> getExcludeHeaders() {
-		Set<String> excludedHeaders = new HashSet<String>();
+		Set<String> excludedHeaders = new HashSet<>();
 		if (!isIncluded(Include.COOKIES)) {
 			excludedHeaders.add("cookie");
 		}
@@ -195,6 +198,12 @@ public class WebRequestTraceFilter extends OncePerRequestFilter implements Order
 	protected void postProcessRequestHeaders(Map<String, Object> headers) {
 	}
 
+	private void addTimeTaken(Map<String, Object> trace, long startTime) {
+		long timeTaken = System.nanoTime() - startTime;
+		add(trace, Include.TIME_TAKEN, "timeTaken",
+				"" + TimeUnit.NANOSECONDS.toMillis(timeTaken));
+	}
+
 	@SuppressWarnings("unchecked")
 	protected void enhanceTrace(Map<String, Object> trace, HttpServletResponse response) {
 		if (isIncluded(Include.RESPONSE_HEADERS)) {
@@ -204,7 +213,7 @@ public class WebRequestTraceFilter extends OncePerRequestFilter implements Order
 	}
 
 	private Map<String, String> getResponseHeaders(HttpServletResponse response) {
-		Map<String, String> headers = new LinkedHashMap<String, String>();
+		Map<String, String> headers = new LinkedHashMap<>();
 		for (String header : response.getHeaderNames()) {
 			String value = response.getHeader(header);
 			headers.put(header, value);
@@ -212,7 +221,7 @@ public class WebRequestTraceFilter extends OncePerRequestFilter implements Order
 		if (!isIncluded(Include.COOKIES)) {
 			headers.remove("Set-Cookie");
 		}
-		headers.put("status", "" + response.getStatus());
+		headers.put("status", String.valueOf(response.getStatus()));
 		return headers;
 	}
 

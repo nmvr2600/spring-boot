@@ -21,10 +21,11 @@ import reactor.core.publisher.Mono;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.context.ReactiveWebApplicationContext;
-import org.springframework.boot.context.embedded.LocalServerPort;
-import org.springframework.boot.context.embedded.ReactiveWebServerFactory;
-import org.springframework.boot.context.embedded.tomcat.TomcatReactiveWebServerFactory;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.web.embedded.tomcat.TomcatReactiveWebServerFactory;
+import org.springframework.boot.web.reactive.context.ReactiveWebApplicationContext;
+import org.springframework.boot.web.reactive.server.ReactiveWebServerFactory;
+import org.springframework.boot.web.server.LocalServerPort;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
@@ -55,6 +56,9 @@ public abstract class AbstractSpringBootTestEmbeddedReactiveWebEnvironmentTests 
 	@Autowired
 	private WebTestClient webClient;
 
+	@Autowired
+	private TestRestTemplate restTemplate;
+
 	public ReactiveWebApplicationContext getContext() {
 		return this.context;
 	}
@@ -62,19 +66,21 @@ public abstract class AbstractSpringBootTestEmbeddedReactiveWebEnvironmentTests 
 	@Test
 	public void runAndTestHttpEndpoint() {
 		assertThat(this.port).isNotEqualTo(8080).isNotEqualTo(0);
-		WebTestClient.bindToServer()
-				.baseUrl("http://localhost:" + this.port).build()
-				.get().uri("/")
-				.exchange()
-				.expectBody(String.class).value().isEqualTo("Hello World");
+		WebTestClient.bindToServer().baseUrl("http://localhost:" + this.port).build()
+				.get().uri("/").exchange().expectBody(String.class).value()
+				.isEqualTo("Hello World");
 	}
 
 	@Test
 	public void injectWebTestClient() {
-		this.webClient
-				.get().uri("/")
-				.exchange()
-				.expectBody(String.class).value().isEqualTo("Hello World");
+		this.webClient.get().uri("/").exchange().expectBody(String.class).value()
+				.isEqualTo("Hello World");
+	}
+
+	@Test
+	public void injectTestRestTemplate() {
+		String body = this.restTemplate.getForObject("/", String.class);
+		assertThat(body).isEqualTo("Hello World");
 	}
 
 	@Test
@@ -93,7 +99,7 @@ public abstract class AbstractSpringBootTestEmbeddedReactiveWebEnvironmentTests 
 		}
 
 		@Bean
-		public ReactiveWebServerFactory embeddedReactiveContainer() {
+		public ReactiveWebServerFactory webServerFactory() {
 			TomcatReactiveWebServerFactory factory = new TomcatReactiveWebServerFactory();
 			factory.setPort(this.port);
 			return factory;

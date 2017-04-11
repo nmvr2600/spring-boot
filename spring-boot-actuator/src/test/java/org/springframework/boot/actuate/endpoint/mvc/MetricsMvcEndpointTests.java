@@ -30,9 +30,9 @@ import org.springframework.boot.actuate.autoconfigure.EndpointWebMvcAutoConfigur
 import org.springframework.boot.actuate.endpoint.MetricsEndpoint;
 import org.springframework.boot.actuate.endpoint.PublicMetrics;
 import org.springframework.boot.actuate.metrics.Metric;
+import org.springframework.boot.autoconfigure.http.HttpMessageConvertersAutoConfiguration;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
-import org.springframework.boot.autoconfigure.web.HttpMessageConvertersAutoConfiguration;
-import org.springframework.boot.autoconfigure.web.WebMvcAutoConfiguration;
+import org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -83,10 +83,10 @@ public class MetricsMvcEndpointTests {
 	}
 
 	@Test
-	public void homeContentTypeDefaultsToActuatorV1Json() throws Exception {
+	public void homeContentTypeDefaultsToActuatorV2Json() throws Exception {
 		this.mvc.perform(get("/metrics")).andExpect(status().isOk())
 				.andExpect(header().string("Content-Type",
-						"application/vnd.spring-boot.actuator.v1+json;charset=UTF-8"));
+						"application/vnd.spring-boot.actuator.v2+json;charset=UTF-8"));
 	}
 
 	@Test
@@ -98,10 +98,10 @@ public class MetricsMvcEndpointTests {
 	}
 
 	@Test
-	public void specificMetricContentTypeDefaultsToActuatorV1Json() throws Exception {
+	public void specificMetricContentTypeDefaultsToActuatorV2Json() throws Exception {
 		this.mvc.perform(get("/metrics/foo")).andExpect(status().isOk())
 				.andExpect(header().string("Content-Type",
-						"application/vnd.spring-boot.actuator.v1+json;charset=UTF-8"));
+						"application/vnd.spring-boot.actuator.v2+json;charset=UTF-8"));
 	}
 
 	@Test
@@ -174,12 +174,12 @@ public class MetricsMvcEndpointTests {
 
 				@Override
 				public Collection<Metric<?>> metrics() {
-					ArrayList<Metric<?>> metrics = new ArrayList<Metric<?>>();
-					metrics.add(new Metric<Integer>("foo", 1));
-					metrics.add(new Metric<Integer>("group1.a", 1));
-					metrics.add(new Metric<Integer>("group1.b", 1));
-					metrics.add(new Metric<Integer>("group2.a", 1));
-					metrics.add(new Metric<Integer>("group2_a", 1));
+					ArrayList<Metric<?>> metrics = new ArrayList<>();
+					metrics.add(new Metric<>("foo", 1));
+					metrics.add(new Metric<>("group1.a", 1));
+					metrics.add(new Metric<>("group1.b", 1));
+					metrics.add(new Metric<>("group2.a", 1));
+					metrics.add(new Metric<>("group2_a", 1));
 					metrics.add(new Metric<Integer>("baz", null));
 					return Collections.unmodifiableList(metrics);
 				}

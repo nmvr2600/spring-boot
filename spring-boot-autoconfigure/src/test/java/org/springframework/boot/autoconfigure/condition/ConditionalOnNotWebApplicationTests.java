@@ -20,9 +20,9 @@ import org.junit.After;
 import org.junit.Test;
 import reactor.core.publisher.Mono;
 
-import org.springframework.boot.autoconfigure.webflux.MockReactiveWebServerFactory;
-import org.springframework.boot.context.GenericReactiveWebApplicationContext;
-import org.springframework.boot.context.embedded.ReactiveWebServerFactory;
+import org.springframework.boot.autoconfigure.web.reactive.MockReactiveWebServerFactory;
+import org.springframework.boot.web.reactive.context.GenericReactiveWebApplicationContext;
+import org.springframework.boot.web.reactive.server.ReactiveWebServerFactory;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -65,9 +65,9 @@ public class ConditionalOnNotWebApplicationTests {
 	@Test
 	public void testNotWebApplicationWithReactiveContext() {
 		GenericReactiveWebApplicationContext ctx = new GenericReactiveWebApplicationContext();
-		ctx.register(ReactiveApplicationConfig.class, NotWebApplicationConfiguration.class);
+		ctx.register(ReactiveApplicationConfig.class,
+				NotWebApplicationConfiguration.class);
 		ctx.refresh();
-
 		this.context = ctx;
 		assertThat(this.context.getBeansOfType(String.class)).isEmpty();
 	}
@@ -77,10 +77,9 @@ public class ConditionalOnNotWebApplicationTests {
 		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
 		ctx.register(NotWebApplicationConfiguration.class);
 		ctx.refresh();
-
 		this.context = ctx;
-		assertThat(this.context.getBeansOfType(String.class)).containsExactly(
-				entry("none", "none"));
+		assertThat(this.context.getBeansOfType(String.class))
+				.containsExactly(entry("none", "none"));
 	}
 
 	@Configuration
@@ -95,6 +94,7 @@ public class ConditionalOnNotWebApplicationTests {
 		public HttpHandler httpHandler() {
 			return (request, response) -> Mono.empty();
 		}
+
 	}
 
 	@Configuration

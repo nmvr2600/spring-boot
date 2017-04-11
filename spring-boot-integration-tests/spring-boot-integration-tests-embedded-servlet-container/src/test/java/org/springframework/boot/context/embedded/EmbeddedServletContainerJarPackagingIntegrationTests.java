@@ -16,6 +16,8 @@
 
 package org.springframework.boot.context.embedded;
 
+import java.util.Arrays;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -38,7 +40,9 @@ public class EmbeddedServletContainerJarPackagingIntegrationTests
 
 	@Parameters(name = "{0}")
 	public static Object[] parameters() {
-		return AbstractEmbeddedServletContainerIntegrationTests.parameters("jar");
+		return AbstractEmbeddedServletContainerIntegrationTests.parameters("jar",
+				Arrays.asList(PackagedApplicationLauncher.class,
+						ExplodedApplicationLauncher.class));
 	}
 
 	public EmbeddedServletContainerJarPackagingIntegrationTests(String name,
@@ -55,8 +59,8 @@ public class EmbeddedServletContainerJarPackagingIntegrationTests
 
 	@Test
 	public void nestedMetaInfResourceIsAvailableViaServletContext() throws Exception {
-		ResponseEntity<String> entity = this.rest
-				.getForEntity("/nested-meta-inf-resource.txt", String.class);
+		ResponseEntity<String> entity = this.rest.getForEntity(
+				"/servletContext?/nested-meta-inf-resource.txt", String.class);
 		assertThat(entity.getStatusCode()).isEqualTo(HttpStatus.OK);
 	}
 

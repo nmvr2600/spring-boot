@@ -22,8 +22,8 @@ import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.beans.factory.support.RootBeanDefinition;
-import org.springframework.boot.context.embedded.AbstractConfigurableReactiveWebServer;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.web.reactive.server.AbstractReactiveWebServerFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.ConfigurableApplicationContext;
@@ -42,8 +42,8 @@ class WebTestClientContextCustomizer implements ContextCustomizer {
 	@Override
 	public void customizeContext(ConfigurableApplicationContext context,
 			MergedContextConfiguration mergedConfig) {
-		SpringBootTest annotation = AnnotatedElementUtils.getMergedAnnotation(
-				mergedConfig.getTestClass(), SpringBootTest.class);
+		SpringBootTest annotation = AnnotatedElementUtils
+				.getMergedAnnotation(mergedConfig.getTestClass(), SpringBootTest.class);
 		if (annotation.webEnvironment().isEmbedded()) {
 			registerWebTestClient(context);
 		}
@@ -120,9 +120,10 @@ class WebTestClientContextCustomizer implements ContextCustomizer {
 
 		private boolean isSslEnabled(ApplicationContext context) {
 			try {
-				AbstractConfigurableReactiveWebServer container = context
-						.getBean(AbstractConfigurableReactiveWebServer.class);
-				return container.getSsl() != null && container.getSsl().isEnabled();
+				AbstractReactiveWebServerFactory webServerFactory = context
+						.getBean(AbstractReactiveWebServerFactory.class);
+				return webServerFactory.getSsl() != null
+						&& webServerFactory.getSsl().isEnabled();
 			}
 			catch (NoSuchBeanDefinitionException ex) {
 				return false;
