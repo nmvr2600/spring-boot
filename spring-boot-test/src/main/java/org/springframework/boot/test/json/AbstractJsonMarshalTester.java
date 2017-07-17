@@ -114,6 +114,14 @@ public abstract class AbstractJsonMarshalTester<T> {
 	}
 
 	/**
+	 * Return class used to load relative resources.
+	 * @return the resource load class
+	 */
+	protected final Class<?> getResourceLoadClass() {
+		return this.resourceLoadClass;
+	}
+
+	/**
 	 * Return {@link JsonContent} from writing the specific value.
 	 * @param value the value to write
 	 * @return the {@link JsonContent}

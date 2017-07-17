@@ -25,7 +25,6 @@ import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactor
 import org.springframework.boot.web.servlet.context.AnnotationConfigServletWebServerApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.util.SocketUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -39,18 +38,14 @@ public class TomcatPublicMetricsTests {
 
 	@Test
 	public void tomcatMetrics() throws Exception {
-		AnnotationConfigServletWebServerApplicationContext context = new AnnotationConfigServletWebServerApplicationContext(
-				Config.class);
-		try {
+		try (AnnotationConfigServletWebServerApplicationContext context = new AnnotationConfigServletWebServerApplicationContext(
+				Config.class)) {
 			TomcatPublicMetrics tomcatMetrics = context
 					.getBean(TomcatPublicMetrics.class);
 			Iterator<Metric<?>> metrics = tomcatMetrics.metrics().iterator();
 			assertThat(metrics.next().getName()).isEqualTo("httpsessions.max");
 			assertThat(metrics.next().getName()).isEqualTo("httpsessions.active");
 			assertThat(metrics.hasNext()).isFalse();
-		}
-		finally {
-			context.close();
 		}
 	}
 
@@ -59,9 +54,7 @@ public class TomcatPublicMetricsTests {
 
 		@Bean
 		public TomcatServletWebServerFactory webServerFactory() {
-			TomcatServletWebServerFactory factory = new TomcatServletWebServerFactory();
-			factory.setPort(SocketUtils.findAvailableTcpPort(40000));
-			return factory;
+			return new TomcatServletWebServerFactory(0);
 		}
 
 		@Bean

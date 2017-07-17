@@ -85,6 +85,12 @@
     "defaultValue": "none"
   },
   {
+    "name": "spring.data.cassandra.reactive-repositories.enabled",
+    "type": "java.lang.Boolean",
+    "description": "Enable Cassandra reactive repositories.",
+    "defaultValue": true
+  },
+  {
     "name": "spring.data.couchbase.consistency",
     "defaultValue": "read-your-own-writes"
   },
@@ -320,6 +326,14 @@
     "defaultValue": true
   },
   {
+    "name": "spring.kafka.jaas.control-flag",
+    "defaultValue": "required"
+  },
+  {
+    "name": "spring.kafka.listener.type",
+    "defaultValue": "single"
+  },
+  {
     "name": "spring.mobile.devicedelegatingviewresolver.enabled",
     "type": "java.lang.Boolean",
     "description": "Enable device view resolver.",
@@ -346,6 +360,10 @@
   {
     "name": "spring.mvc.locale-resolver",
     "defaultValue": "accept-header"
+  },
+  {
+    "name": "spring.quartz.job-store-type",
+    "defaultValue": "memory"
   },
   {
     "name": "spring.rabbitmq.cache.connection.mode",

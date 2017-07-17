@@ -20,13 +20,17 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
+import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
+import org.apache.commons.compress.archivers.zip.ZipFile;
 import org.gradle.api.Project;
 import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.gradle.api.tasks.bundling.Jar;
@@ -184,6 +188,14 @@ public abstract class AbstractBootArchiveTests<T extends Jar & BootArchive> {
 		this.task.execute();
 		assertThat(Files.readAllBytes(this.task.getArchivePath().toPath()))
 				.startsWith(new DefaultLaunchScript(null, null).toByteArray());
+		try {
+			Set<PosixFilePermission> permissions = Files
+					.getPosixFilePermissions(this.task.getArchivePath().toPath());
+			assertThat(permissions).contains(PosixFilePermission.OWNER_EXECUTE);
+		}
+		catch (UnsupportedOperationException ex) {
+			// Windows, presumably. Continue
+		}
 	}
 
 	@Test
@@ -303,6 +315,27 @@ public abstract class AbstractBootArchiveTests<T extends Jar & BootArchive> {
 		try (JarFile jarFile = new JarFile(this.task.getArchivePath())) {
 			assertThat(jarFile.getEntry(this.libPath + "/spring-boot-devtools-0.1.2.jar"))
 					.isNotNull();
+		}
+	}
+
+	@Test
+	public void allEntriesUseUnixPlatformAndUtf8NameEncoding() throws IOException {
+		this.task.setMainClass("com.example.Main");
+		this.task.setMetadataCharset("UTF-8");
+		File classpathFolder = this.temp.newFolder();
+		File resource = new File(classpathFolder, "some-resource.xml");
+		resource.getParentFile().mkdirs();
+		resource.createNewFile();
+		this.task.classpath(classpathFolder);
+		this.task.execute();
+		File archivePath = this.task.getArchivePath();
+		try (ZipFile zip = new ZipFile(archivePath)) {
+			Enumeration<ZipArchiveEntry> entries = zip.getEntries();
+			while (entries.hasMoreElements()) {
+				ZipArchiveEntry entry = entries.nextElement();
+				assertThat(entry.getPlatform()).isEqualTo(ZipArchiveEntry.PLATFORM_UNIX);
+				assertThat(entry.getGeneralPurposeBit().usesUTF8ForNames()).isTrue();
+			}
 		}
 	}
 

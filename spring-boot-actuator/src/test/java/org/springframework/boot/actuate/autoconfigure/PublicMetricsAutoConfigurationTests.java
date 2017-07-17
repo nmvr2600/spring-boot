@@ -40,12 +40,12 @@ import org.springframework.boot.actuate.endpoint.TomcatPublicMetrics;
 import org.springframework.boot.actuate.metrics.Metric;
 import org.springframework.boot.actuate.metrics.rich.RichGauge;
 import org.springframework.boot.actuate.metrics.rich.RichGaugeReader;
+import org.springframework.boot.actuate.servlet.MockServletWebServerFactory;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceBuilder;
 import org.springframework.boot.autoconfigure.jdbc.metadata.DataSourcePoolMetadataProvidersConfiguration;
 import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory;
 import org.springframework.boot.web.servlet.context.AnnotationConfigServletWebServerApplicationContext;
-import org.springframework.boot.web.servlet.server.MockServletWebServerFactory;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 import org.springframework.context.ConfigurableApplicationContext;
@@ -57,7 +57,6 @@ import org.springframework.core.annotation.Order;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.util.SocketUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.fail;
@@ -126,9 +125,10 @@ public class PublicMetricsAutoConfigurationTests {
 	}
 
 	@Test
-	public void autoDataSource() {
+	public void autoDataSource() throws SQLException {
 		load(DataSourceAutoConfiguration.class);
 		PublicMetrics bean = this.context.getBean(DataSourcePublicMetrics.class);
+		this.context.getBean(DataSource.class).getConnection().close();
 		Collection<Metric<?>> metrics = bean.metrics();
 		assertMetrics(metrics, "datasource.primary.active", "datasource.primary.usage");
 	}
@@ -346,9 +346,7 @@ public class PublicMetricsAutoConfigurationTests {
 
 		@Bean
 		public TomcatServletWebServerFactory webServerFactory() {
-			TomcatServletWebServerFactory factory = new TomcatServletWebServerFactory();
-			factory.setPort(SocketUtils.findAvailableTcpPort(40000));
-			return factory;
+			return new TomcatServletWebServerFactory(0);
 		}
 
 	}

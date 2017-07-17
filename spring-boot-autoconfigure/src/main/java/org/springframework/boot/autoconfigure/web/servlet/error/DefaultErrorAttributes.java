@@ -34,6 +34,7 @@ import org.springframework.validation.BindingResult;
 import org.springframework.validation.ObjectError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.HandlerExceptionResolver;
 import org.springframework.web.servlet.ModelAndView;
 
@@ -44,7 +45,7 @@ import org.springframework.web.servlet.ModelAndView;
  * <li>timestamp - The time that the errors were extracted</li>
  * <li>status - The status code</li>
  * <li>error - The error reason</li>
- * <li>exception - The class name of the root exception</li>
+ * <li>exception - The class name of the root exception (if configured)</li>
  * <li>message - The exception message</li>
  * <li>errors - Any {@link ObjectError}s from a {@link BindingResult} exception
  * <li>trace - The exception stack trace</li>
@@ -54,6 +55,7 @@ import org.springframework.web.servlet.ModelAndView;
  * @author Phillip Webb
  * @author Dave Syer
  * @author Stephane Nicoll
+ * @author Vedran Pavic
  * @since 1.1.0
  * @see ErrorAttributes
  */
@@ -63,6 +65,24 @@ public class DefaultErrorAttributes
 
 	private static final String ERROR_ATTRIBUTE = DefaultErrorAttributes.class.getName()
 			+ ".ERROR";
+
+	private final boolean includeException;
+
+	/**
+	 * Create a new {@link DefaultErrorAttributes} instance that does not include the
+	 * "exception" attribute.
+	 */
+	public DefaultErrorAttributes() {
+		this(false);
+	}
+
+	/**
+	 * Create a new {@link DefaultErrorAttributes} instance.
+	 * @param includeException whether to include the "exception" attribute
+	 */
+	public DefaultErrorAttributes(boolean includeException) {
+		this.includeException = includeException;
+	}
 
 	@Override
 	public int getOrder() {
@@ -81,13 +101,13 @@ public class DefaultErrorAttributes
 	}
 
 	@Override
-	public Map<String, Object> getErrorAttributes(RequestAttributes requestAttributes,
+	public Map<String, Object> getErrorAttributes(WebRequest webRequest,
 			boolean includeStackTrace) {
 		Map<String, Object> errorAttributes = new LinkedHashMap<>();
 		errorAttributes.put("timestamp", new Date());
-		addStatus(errorAttributes, requestAttributes);
-		addErrorDetails(errorAttributes, requestAttributes, includeStackTrace);
-		addPath(errorAttributes, requestAttributes);
+		addStatus(errorAttributes, webRequest);
+		addErrorDetails(errorAttributes, webRequest, includeStackTrace);
+		addPath(errorAttributes, webRequest);
 		return errorAttributes;
 	}
 
@@ -111,19 +131,21 @@ public class DefaultErrorAttributes
 	}
 
 	private void addErrorDetails(Map<String, Object> errorAttributes,
-			RequestAttributes requestAttributes, boolean includeStackTrace) {
-		Throwable error = getError(requestAttributes);
+			WebRequest webRequest, boolean includeStackTrace) {
+		Throwable error = getError(webRequest);
 		if (error != null) {
 			while (error instanceof ServletException && error.getCause() != null) {
 				error = ((ServletException) error).getCause();
 			}
-			errorAttributes.put("exception", error.getClass().getName());
+			if (this.includeException) {
+				errorAttributes.put("exception", error.getClass().getName());
+			}
 			addErrorMessage(errorAttributes, error);
 			if (includeStackTrace) {
 				addStackTrace(errorAttributes, error);
 			}
 		}
-		Object message = getAttribute(requestAttributes, "javax.servlet.error.message");
+		Object message = getAttribute(webRequest, "javax.servlet.error.message");
 		if ((!StringUtils.isEmpty(message) || errorAttributes.get("message") == null)
 				&& !(error instanceof BindingResult)) {
 			errorAttributes.put("message",
@@ -174,10 +196,10 @@ public class DefaultErrorAttributes
 	}
 
 	@Override
-	public Throwable getError(RequestAttributes requestAttributes) {
-		Throwable exception = getAttribute(requestAttributes, ERROR_ATTRIBUTE);
+	public Throwable getError(WebRequest webRequest) {
+		Throwable exception = getAttribute(webRequest, ERROR_ATTRIBUTE);
 		if (exception == null) {
-			exception = getAttribute(requestAttributes, "javax.servlet.error.exception");
+			exception = getAttribute(webRequest, "javax.servlet.error.exception");
 		}
 		return exception;
 	}

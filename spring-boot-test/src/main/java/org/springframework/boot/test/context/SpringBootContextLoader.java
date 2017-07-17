@@ -21,15 +21,17 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import org.springframework.beans.BeanUtils;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
-import org.springframework.boot.bind.RelaxedPropertyResolver;
+import org.springframework.boot.context.properties.bind.Bindable;
+import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.boot.context.properties.source.ConfigurationPropertySource;
+import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 import org.springframework.boot.test.mock.web.SpringBootMockServletContext;
-import org.springframework.boot.test.util.EnvironmentTestUtils;
+import org.springframework.boot.test.util.TestPropertyValues;
 import org.springframework.boot.web.reactive.context.GenericReactiveWebApplicationContext;
 import org.springframework.boot.web.servlet.support.ServletContextApplicationContextInitializer;
 import org.springframework.context.ApplicationContext;
@@ -40,10 +42,6 @@ import org.springframework.core.SpringVersion;
 import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.env.ConfigurableEnvironment;
-import org.springframework.core.env.MapPropertySource;
-import org.springframework.core.env.MutablePropertySources;
-import org.springframework.core.env.PropertySources;
-import org.springframework.core.env.PropertySourcesPropertyResolver;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.test.context.ContextConfigurationAttributes;
@@ -76,6 +74,7 @@ import org.springframework.web.context.support.GenericWebApplicationContext;
  * @author Phillip Webb
  * @author Andy Wilkinson
  * @author Stephane Nicoll
+ * @author Madhura Bhave
  * @see SpringBootTest
  */
 public class SpringBootContextLoader extends AbstractContextLoader {
@@ -92,9 +91,20 @@ public class SpringBootContextLoader extends AbstractContextLoader {
 	@Override
 	public ApplicationContext loadContext(MergedContextConfiguration config)
 			throws Exception {
+		Class<?>[] configClasses = config.getClasses();
+		String[] configLocations = config.getLocations();
+		Assert.state(
+				!ObjectUtils.isEmpty(configClasses)
+						|| !ObjectUtils.isEmpty(configLocations),
+				"No configuration classes "
+						+ "or locations found in @SpringApplicationConfiguration. "
+						+ "For default configuration detection to work you need "
+						+ "Spring 4.0.3 or better (found " + SpringVersion.getVersion()
+						+ ").");
 		SpringApplication application = getSpringApplication();
 		application.setMainApplicationClass(config.getTestClass());
-		application.setSources(getSources(config));
+		application.addPrimarySources(Arrays.asList(configClasses));
+		application.getSources().addAll(Arrays.asList(configLocations));
 		ConfigurableEnvironment environment = new StandardEnvironment();
 		if (!ObjectUtils.isEmpty(config.getActiveProfiles())) {
 			setActiveProfiles(environment, config.getActiveProfiles());
@@ -138,21 +148,12 @@ public class SpringBootContextLoader extends AbstractContextLoader {
 		return new SpringApplication();
 	}
 
-	private Set<Object> getSources(MergedContextConfiguration mergedConfig) {
-		Set<Object> sources = new LinkedHashSet<>();
-		sources.addAll(Arrays.asList(mergedConfig.getClasses()));
-		sources.addAll(Arrays.asList(mergedConfig.getLocations()));
-		Assert.state(!sources.isEmpty(), "No configuration classes "
-				+ "or locations found in @SpringApplicationConfiguration. "
-				+ "For default configuration detection to work you need "
-				+ "Spring 4.0.3 or better (found " + SpringVersion.getVersion() + ").");
-		return sources;
-	}
-
 	private void setActiveProfiles(ConfigurableEnvironment environment,
 			String[] profiles) {
-		EnvironmentTestUtils.addEnvironment(environment, "spring.profiles.active="
-				+ StringUtils.arrayToCommaDelimitedString(profiles));
+		TestPropertyValues
+				.of("spring.profiles.active="
+						+ StringUtils.arrayToCommaDelimitedString(profiles))
+				.applyTo(environment);
 	}
 
 	protected String[] getInlinedProperties(MergedContextConfiguration config) {
@@ -171,19 +172,15 @@ public class SpringBootContextLoader extends AbstractContextLoader {
 	}
 
 	private boolean hasCustomServerPort(List<String> properties) {
-		PropertySources sources = convertToPropertySources(properties);
-		RelaxedPropertyResolver resolver = new RelaxedPropertyResolver(
-				new PropertySourcesPropertyResolver(sources), "server.");
-		return resolver.containsProperty("port");
+		Binder binder = new Binder(convertToConfigurationPropertySource(properties));
+		return binder.bind("server.port", Bindable.of(String.class)).isBound();
 	}
 
-	private PropertySources convertToPropertySources(List<String> properties) {
-		Map<String, Object> source = TestPropertySourceUtils
-				.convertInlinedPropertiesToMap(
-						properties.toArray(new String[properties.size()]));
-		MutablePropertySources sources = new MutablePropertySources();
-		sources.addFirst(new MapPropertySource("inline", source));
-		return sources;
+	private ConfigurationPropertySource convertToConfigurationPropertySource(
+			List<String> properties) {
+		String[] array = properties.toArray(new String[properties.size()]);
+		return new MapConfigurationPropertySource(
+				TestPropertySourceUtils.convertInlinedPropertiesToMap(array));
 	}
 
 	private List<ApplicationContextInitializer<?>> getInitializers(

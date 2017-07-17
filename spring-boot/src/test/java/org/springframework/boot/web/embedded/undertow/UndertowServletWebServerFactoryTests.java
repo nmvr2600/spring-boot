@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
+import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLHandshakeException;
 
 import io.undertow.Undertow.Builder;
@@ -38,13 +39,14 @@ import org.apache.jasper.servlet.JspServlet;
 import org.junit.Test;
 import org.mockito.InOrder;
 
+import org.springframework.boot.testsupport.web.servlet.ExampleServlet;
 import org.springframework.boot.web.server.ErrorPage;
 import org.springframework.boot.web.server.MimeMappings.Mapping;
 import org.springframework.boot.web.server.PortInUseException;
+import org.springframework.boot.web.server.Ssl;
 import org.springframework.boot.web.servlet.ServletRegistrationBean;
 import org.springframework.boot.web.servlet.server.AbstractServletWebServerFactory;
 import org.springframework.boot.web.servlet.server.AbstractServletWebServerFactoryTests;
-import org.springframework.boot.web.servlet.server.ExampleServlet;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -248,6 +250,18 @@ public class UndertowServletWebServerFactoryTests
 				new String[] { "TLS_RSA_WITH_AES_128_CBC_SHA256" });
 	}
 
+	@Test
+	public void getKeyManagersWhenAliasIsNullShouldNotDecorate() throws Exception {
+		UndertowServletWebServerFactory factory = getFactory();
+		Ssl ssl = getSsl(null, "password", "src/test/resources/test.jks");
+		factory.setSsl(ssl);
+		KeyManager[] keyManagers = ReflectionTestUtils.invokeMethod(factory,
+				"getKeyManagers");
+		Class<?> name = Class.forName("org.springframework.boot.web.embedded.undertow"
+				+ ".UndertowServletWebServerFactory$ConfigurableAliasKeyManager");
+		assertThat(keyManagers[0]).isNotInstanceOf(name);
+	}
+
 	@Override
 	protected JspServlet getJspServlet() {
 		return null; // Undertow does not support JSPs
@@ -261,10 +275,15 @@ public class UndertowServletWebServerFactoryTests
 	}
 
 	private ServletContainer getServletContainerFromNewFactory() {
-		UndertowServletWebServer undertow1 = (UndertowServletWebServer) getFactory()
+		UndertowServletWebServer container = (UndertowServletWebServer) getFactory()
 				.getWebServer();
-		return ((DeploymentManager) ReflectionTestUtils.getField(undertow1, "manager"))
-				.getDeployment().getServletContainer();
+		try {
+			return ((DeploymentManager) ReflectionTestUtils.getField(container,
+					"manager")).getDeployment().getServletContainer();
+		}
+		finally {
+			container.stop();
+		}
 	}
 
 	@Override

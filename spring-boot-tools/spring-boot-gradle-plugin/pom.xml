@@ -18,6 +18,7 @@
 	<properties>
 		<main.basedir>${basedir}/../..</main.basedir>
 		<gradle.executable>./gradlew</gradle.executable>
+		<gradle.task>build</gradle.task>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -27,6 +28,10 @@
 		<dependency>
 			<groupId>io.spring.gradle</groupId>
 			<artifactId>dependency-management-plugin</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-compress</artifactId>
 		</dependency>
 	</dependencies>
 	<build>
@@ -56,7 +61,7 @@
 							<executable>${gradle.executable}</executable>
 							<arguments>
 								<argument>clean</argument>
-								<argument>build</argument>
+								<argument>${gradle.task}</argument>
 								<argument>-Pversion=${project.version}</argument>
 								<argument>-Pdescription=${project.description}</argument>
 							</arguments>
@@ -106,11 +111,23 @@
 			<id>windows</id>
 			<activation>
 				<os>
-					<name>windows</name>
+					<family>windows</family>
 				</os>
 			</activation>
 			<properties>
 				<gradle.executable>gradlew.bat</gradle.executable>
+			</properties>
+		</profile>
+		<profile>
+			<id>skipTests</id>
+			<activation>
+				<property>
+					<name>skipTests</name>
+					<value>true</value>
+				</property>
+			</activation>
+			<properties>
+				<gradle.task>assemble</gradle.task>
 			</properties>
 		</profile>
 		<profile>

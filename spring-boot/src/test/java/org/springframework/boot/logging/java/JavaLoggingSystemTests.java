@@ -34,7 +34,7 @@ import org.springframework.boot.logging.AbstractLoggingSystemTests;
 import org.springframework.boot.logging.LogLevel;
 import org.springframework.boot.logging.LoggerConfiguration;
 import org.springframework.boot.logging.LoggingSystem;
-import org.springframework.boot.testutil.InternalOutputCapture;
+import org.springframework.boot.testsupport.rule.OutputCapture;
 import org.springframework.util.ClassUtils;
 import org.springframework.util.StringUtils;
 
@@ -62,7 +62,7 @@ public class JavaLoggingSystemTests extends AbstractLoggingSystemTests {
 			getClass().getClassLoader());
 
 	@Rule
-	public InternalOutputCapture output = new InternalOutputCapture();
+	public OutputCapture output = new OutputCapture();
 
 	private Logger logger;
 
@@ -163,6 +163,19 @@ public class JavaLoggingSystemTests extends AbstractLoggingSystemTests {
 		this.loggingSystem.initialize(null, null, null);
 		this.logger.fine("Hello");
 		this.loggingSystem.setLogLevel("org.springframework.boot", LogLevel.DEBUG);
+		this.logger.fine("Hello");
+		assertThat(StringUtils.countOccurrencesOf(this.output.toString(), "Hello"))
+				.isEqualTo(1);
+	}
+
+	@Test
+	public void setLevelToNull() throws Exception {
+		this.loggingSystem.beforeInitialize();
+		this.loggingSystem.initialize(null, null, null);
+		this.logger.fine("Hello");
+		this.loggingSystem.setLogLevel("org.springframework.boot", LogLevel.DEBUG);
+		this.logger.fine("Hello");
+		this.loggingSystem.setLogLevel("org.springframework.boot", null);
 		this.logger.fine("Hello");
 		assertThat(StringUtils.countOccurrencesOf(this.output.toString(), "Hello"))
 				.isEqualTo(1);

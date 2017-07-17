@@ -16,32 +16,34 @@
 
 package org.springframework.boot.autoconfigure.jdbc;
 
-import java.net.URL;
-import java.net.URLClassLoader;
 import java.sql.Connection;
 import java.sql.Driver;
 import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Properties;
 import java.util.Random;
+import java.util.function.Consumer;
 import java.util.logging.Logger;
 
 import javax.sql.DataSource;
 
 import com.zaxxer.hikari.HikariDataSource;
 import org.apache.commons.dbcp2.BasicDataSource;
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
 
 import org.springframework.beans.factory.BeanCreationException;
-import org.springframework.boot.autoconfigure.context.PropertyPlaceholderAutoConfiguration;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.DatabaseDriver;
-import org.springframework.boot.test.util.EnvironmentTestUtils;
-import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.boot.test.context.ContextConsumer;
+import org.springframework.boot.test.context.ContextLoader;
+import org.springframework.boot.test.context.HidePackagesClassLoader;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.SimpleDriverDataSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -55,117 +57,104 @@ import static org.mockito.Mockito.mock;
  */
 public class DataSourceAutoConfigurationTests {
 
-	private final AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
-
-	@Before
-	public void init() {
-		EmbeddedDatabaseConnection.override = null;
-		EnvironmentTestUtils.addEnvironment(this.context,
-				"spring.datasource.initialize:false",
-				"spring.datasource.url:jdbc:hsqldb:mem:testdb-" + new Random().nextInt());
-	}
-
-	@After
-	public void restore() {
-		EmbeddedDatabaseConnection.override = null;
-		this.context.close();
-	}
+	private final ContextLoader contextLoader = ContextLoader.standard()
+			.autoConfig(DataSourceAutoConfiguration.class)
+			.env("spring.datasource.initialize=false",
+					"spring.datasource.url:jdbc:hsqldb:mem:testdb-"
+							+ new Random().nextInt());
 
 	@Test
 	public void testDefaultDataSourceExists() throws Exception {
-		this.context.register(DataSourceAutoConfiguration.class,
-				PropertyPlaceholderAutoConfiguration.class);
-		this.context.refresh();
-		assertThat(this.context.getBean(DataSource.class)).isNotNull();
+		this.contextLoader.load(
+				context -> assertThat(context.getBean(DataSource.class)).isNotNull());
 	}
 
 	@Test
 	public void testDataSourceHasEmbeddedDefault() throws Exception {
-		this.context.register(DataSourceAutoConfiguration.class,
-				PropertyPlaceholderAutoConfiguration.class);
-		this.context.refresh();
-		org.apache.tomcat.jdbc.pool.DataSource dataSource = this.context
-				.getBean(org.apache.tomcat.jdbc.pool.DataSource.class);
-		assertThat(dataSource.getUrl()).isNotNull();
-		assertThat(dataSource.getDriverClassName()).isNotNull();
+		this.contextLoader.load(context -> {
+			HikariDataSource dataSource = context.getBean(HikariDataSource.class);
+			assertThat(dataSource.getJdbcUrl()).isNotNull();
+			assertThat(dataSource.getDriverClassName()).isNotNull();
+		});
 	}
 
-	@Test(expected = BeanCreationException.class)
+	@Test
 	public void testBadUrl() throws Exception {
-		EnvironmentTestUtils.addEnvironment(this.context,
-				"spring.datasource.url:jdbc:not-going-to-work");
-		EmbeddedDatabaseConnection.override = EmbeddedDatabaseConnection.NONE;
-		this.context.register(DataSourceAutoConfiguration.class,
-				PropertyPlaceholderAutoConfiguration.class);
-		this.context.refresh();
-		assertThat(this.context.getBean(DataSource.class)).isNotNull();
+		try {
+			EmbeddedDatabaseConnection.override = EmbeddedDatabaseConnection.NONE;
+			this.contextLoader.env("spring.datasource.url:jdbc:not-going-to-work")
+					.loadAndFail(BeanCreationException.class, ex -> {
+					});
+		}
+		finally {
+			EmbeddedDatabaseConnection.override = null;
+		}
 	}
 
-	@Test(expected = BeanCreationException.class)
+	@Test
 	public void testBadDriverClass() throws Exception {
-		EnvironmentTestUtils.addEnvironment(this.context,
-				"spring.datasource.driverClassName:org.none.jdbcDriver",
-				"spring.datasource.url:jdbc:hsqldb:mem:testdb");
-		EmbeddedDatabaseConnection.override = EmbeddedDatabaseConnection.NONE;
-		this.context.register(DataSourceAutoConfiguration.class,
-				PropertyPlaceholderAutoConfiguration.class);
-		this.context.refresh();
-		assertThat(this.context.getBean(DataSource.class)).isNotNull();
-	}
-
-	@Test
-	public void tomcatValidatesConnectionByDefault() {
-		org.apache.tomcat.jdbc.pool.DataSource dataSource = autoConfigureDataSource(
-				org.apache.tomcat.jdbc.pool.DataSource.class);
-		assertThat(dataSource.isTestOnBorrow()).isTrue();
-		assertThat(dataSource.getValidationQuery())
-				.isEqualTo(DatabaseDriver.HSQLDB.getValidationQuery());
-	}
-
-	@Test
-	public void hikariIsFallback() throws Exception {
-		HikariDataSource dataSource = autoConfigureDataSource(HikariDataSource.class,
-				"org.apache.tomcat");
-		assertThat(dataSource.getJdbcUrl()).isEqualTo("jdbc:hsqldb:mem:testdb");
+		this.contextLoader.env("spring.datasource.driverClassName:org.none.jdbcDriver")
+				.loadAndFail(BeanCreationException.class,
+						ex -> assertThat(ex.getMessage())
+								.contains("org.none.jdbcDriver"));
 	}
 
 	@Test
 	public void hikariValidatesConnectionByDefault() throws Exception {
-		HikariDataSource dataSource = autoConfigureDataSource(HikariDataSource.class,
-				"org.apache.tomcat");
-		assertThat(dataSource.getConnectionTestQuery()).isNull();
-		// Use Connection#isValid()
+		assertDataSource(HikariDataSource.class,
+				Collections.singletonList("org.apache.tomcat"), dataSource ->
+				// Use Connection#isValid()
+				assertThat(dataSource.getConnectionTestQuery()).isNull());
+	}
+
+	@Test
+	public void tomcatIsFallback() throws Exception {
+		assertDataSource(org.apache.tomcat.jdbc.pool.DataSource.class,
+				Collections.singletonList("com.zaxxer.hikari"),
+				dataSource -> assertThat(dataSource.getUrl())
+						.startsWith("jdbc:hsqldb:mem:testdb"));
+	}
+
+	@Test
+	public void tomcatValidatesConnectionByDefault() {
+		assertDataSource(org.apache.tomcat.jdbc.pool.DataSource.class,
+				Collections.singletonList("com.zaxxer.hikari"), dataSource -> {
+					assertThat(dataSource.isTestOnBorrow()).isTrue();
+					assertThat(dataSource.getValidationQuery())
+							.isEqualTo(DatabaseDriver.HSQLDB.getValidationQuery());
+				});
 	}
 
 	@Test
 	public void commonsDbcp2IsFallback() throws Exception {
-		BasicDataSource dataSource = autoConfigureDataSource(BasicDataSource.class,
-				"org.apache.tomcat", "com.zaxxer.hikari");
-		assertThat(dataSource.getUrl()).isEqualTo("jdbc:hsqldb:mem:testdb");
+		assertDataSource(BasicDataSource.class,
+				Arrays.asList("com.zaxxer.hikari", "org.apache.tomcat"),
+				dataSource -> assertThat(dataSource.getUrl())
+						.startsWith("jdbc:hsqldb:mem:testdb"));
 	}
 
 	@Test
 	public void commonsDbcp2ValidatesConnectionByDefault() throws Exception {
-		org.apache.commons.dbcp2.BasicDataSource dataSource = autoConfigureDataSource(
-				org.apache.commons.dbcp2.BasicDataSource.class, "org.apache.tomcat",
-				"com.zaxxer.hikari");
-		assertThat(dataSource.getTestOnBorrow()).isEqualTo(true);
-		assertThat(dataSource.getValidationQuery()).isNull(); // Use Connection#isValid()
+		assertDataSource(org.apache.commons.dbcp2.BasicDataSource.class,
+				Arrays.asList("com.zaxxer.hikari", "org.apache.tomcat"), dataSource -> {
+					assertThat(dataSource.getTestOnBorrow()).isEqualTo(true);
+					assertThat(dataSource.getValidationQuery()).isNull(); // Use
+																			// Connection#isValid()
+				});
 	}
 
 	@Test
 	public void testEmbeddedTypeDefaultsUsername() throws Exception {
-		EnvironmentTestUtils.addEnvironment(this.context,
-				"spring.datasource.driverClassName:org.hsqldb.jdbcDriver",
-				"spring.datasource.url:jdbc:hsqldb:mem:testdb");
-		this.context.register(DataSourceAutoConfiguration.class,
-				PropertyPlaceholderAutoConfiguration.class);
-		this.context.refresh();
-		DataSource bean = this.context.getBean(DataSource.class);
-		assertThat(bean).isNotNull();
-		org.apache.tomcat.jdbc.pool.DataSource pool = (org.apache.tomcat.jdbc.pool.DataSource) bean;
-		assertThat(pool.getDriverClassName()).isEqualTo("org.hsqldb.jdbcDriver");
-		assertThat(pool.getUsername()).isEqualTo("sa");
+		this.contextLoader.env("spring.datasource.driverClassName:org.hsqldb.jdbcDriver",
+				"spring.datasource.url:jdbc:hsqldb:mem:testdb").load(context -> {
+					DataSource bean = context.getBean(DataSource.class);
+					assertThat(bean).isNotNull();
+					@SuppressWarnings("resource")
+					HikariDataSource pool = (HikariDataSource) bean;
+					assertThat(pool.getDriverClassName())
+							.isEqualTo("org.hsqldb.jdbcDriver");
+					assertThat(pool.getUsername()).isEqualTo("sa");
+				});
 	}
 
 	/**
@@ -174,76 +163,75 @@ public class DataSourceAutoConfigurationTests {
 	 */
 	@Test
 	public void explicitTypeNoSupportedDataSource() {
-		EnvironmentTestUtils.addEnvironment(this.context,
-				"spring.datasource.driverClassName:org.hsqldb.jdbcDriver",
-				"spring.datasource.url:jdbc:hsqldb:mem:testdb",
-				"spring.datasource.type:" + SimpleDriverDataSource.class.getName());
-		this.context.setClassLoader(
-				new HidePackagesClassLoader("org.apache.tomcat", "com.zaxxer.hikari",
-						"org.apache.commons.dbcp", "org.apache.commons.dbcp2"));
-		testExplicitType();
+		this.contextLoader
+				.classLoader(new HidePackagesClassLoader("org.apache.tomcat",
+						"com.zaxxer.hikari", "org.apache.commons.dbcp",
+						"org.apache.commons.dbcp2"))
+				.env("spring.datasource.driverClassName:org.hsqldb.jdbcDriver",
+						"spring.datasource.url:jdbc:hsqldb:mem:testdb",
+						"spring.datasource.type:"
+								+ SimpleDriverDataSource.class.getName())
+				.load(testExplicitType());
 	}
 
 	@Test
 	public void explicitTypeSupportedDataSource() {
-		EnvironmentTestUtils.addEnvironment(this.context,
-				"spring.datasource.driverClassName:org.hsqldb.jdbcDriver",
-				"spring.datasource.url:jdbc:hsqldb:mem:testdb",
-				"spring.datasource.type:" + SimpleDriverDataSource.class.getName());
-		testExplicitType();
+		this.contextLoader
+				.env("spring.datasource.driverClassName:org.hsqldb.jdbcDriver",
+						"spring.datasource.url:jdbc:hsqldb:mem:testdb",
+						"spring.datasource.type:"
+								+ SimpleDriverDataSource.class.getName())
+				.load(testExplicitType());
 	}
 
-	private void testExplicitType() {
-		this.context.register(DataSourceAutoConfiguration.class,
-				PropertyPlaceholderAutoConfiguration.class);
-		this.context.refresh();
-		assertThat(this.context.getBeansOfType(DataSource.class)).hasSize(1);
-		DataSource bean = this.context.getBean(DataSource.class);
-		assertThat(bean).isNotNull();
-		assertThat(bean.getClass()).isEqualTo(SimpleDriverDataSource.class);
+	private ContextConsumer testExplicitType() {
+		return context -> {
+			assertThat(context.getBeansOfType(DataSource.class)).hasSize(1);
+			DataSource bean = context.getBean(DataSource.class);
+			assertThat(bean).isNotNull();
+			assertThat(bean.getClass()).isEqualTo(SimpleDriverDataSource.class);
+		};
 	}
 
 	@Test
 	public void testExplicitDriverClassClearsUsername() throws Exception {
-		EnvironmentTestUtils.addEnvironment(this.context,
-				"spring.datasource.driverClassName:"
-						+ "org.springframework.boot.autoconfigure.jdbc."
-						+ "DataSourceAutoConfigurationTests$DatabaseTestDriver",
-				"spring.datasource.url:jdbc:foo://localhost");
-		this.context.register(DataSourceAutoConfiguration.class,
-				PropertyPlaceholderAutoConfiguration.class);
-		this.context.refresh();
-		DataSource bean = this.context.getBean(DataSource.class);
-		assertThat(bean).isNotNull();
-		org.apache.tomcat.jdbc.pool.DataSource pool = (org.apache.tomcat.jdbc.pool.DataSource) bean;
-		assertThat(pool.getDriverClassName()).isEqualTo(
-				"org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfigurationTests$DatabaseTestDriver");
-		assertThat(pool.getUsername()).isNull();
+		this.contextLoader.env(
+				"spring.datasource.driverClassName:" + DatabaseTestDriver.class.getName(),
+				"spring.datasource.url:jdbc:foo://localhost").load(context -> {
+					DataSource dataSource = context.getBean(DataSource.class);
+					assertThat(dataSource).isNotNull();
+					assertThat(((HikariDataSource) dataSource).getDriverClassName())
+							.isEqualTo(DatabaseTestDriver.class.getName());
+					assertThat(((HikariDataSource) dataSource).getUsername()).isNull();
+				});
 	}
 
 	@Test
 	public void testDefaultDataSourceCanBeOverridden() throws Exception {
-		this.context.register(TestDataSourceConfiguration.class,
-				DataSourceAutoConfiguration.class,
-				PropertyPlaceholderAutoConfiguration.class);
-		this.context.refresh();
-		DataSource dataSource = this.context.getBean(DataSource.class);
-		assertThat(dataSource).isInstanceOf(BasicDataSource.class);
+		this.contextLoader.config(TestDataSourceConfiguration.class).load(context -> {
+			DataSource dataSource = context.getBean(DataSource.class);
+			assertThat(dataSource).isInstanceOf(BasicDataSource.class);
+		});
 	}
 
-	@SuppressWarnings("unchecked")
-	private <T extends DataSource> T autoConfigureDataSource(Class<T> expectedType,
-			final String... hiddenPackages) {
-		EnvironmentTestUtils.addEnvironment(this.context,
-				"spring.datasource.driverClassName:org.hsqldb.jdbcDriver",
-				"spring.datasource.url:jdbc:hsqldb:mem:testdb");
-		this.context.setClassLoader(new HidePackagesClassLoader(hiddenPackages));
-		this.context.register(DataSourceAutoConfiguration.class,
-				PropertyPlaceholderAutoConfiguration.class);
-		this.context.refresh();
-		DataSource bean = this.context.getBean(DataSource.class);
-		assertThat(bean).isInstanceOf(expectedType);
-		return (T) bean;
+	@Test
+	public void testDataSourceIsInitializedEarly() {
+		this.contextLoader.config(TestInitializedDataSourceConfiguration.class)
+				.env("spring.datasource.initialize=true")
+				.load(context -> assertThat(context
+						.getBean(TestInitializedDataSourceConfiguration.class).called)
+								.isTrue());
+	}
+
+	private <T extends DataSource> void assertDataSource(Class<T> expectedType,
+			List<String> hiddenPackages, Consumer<T> consumer) {
+		HidePackagesClassLoader classLoader = new HidePackagesClassLoader(
+				hiddenPackages.toArray(new String[hiddenPackages.size()]));
+		this.contextLoader.classLoader(classLoader).load(context -> {
+			DataSource bean = context.getBean(DataSource.class);
+			assertThat(bean).isInstanceOf(expectedType);
+			consumer.accept(expectedType.cast(bean));
+		});
 	}
 
 	@Configuration
@@ -258,6 +246,22 @@ public class DataSourceAutoConfigurationTests {
 			this.pool.setUrl("jdbc:hsqldb:target/overridedb");
 			this.pool.setUsername("sa");
 			return this.pool;
+		}
+
+	}
+
+	@Configuration
+	static class TestInitializedDataSourceConfiguration {
+
+		private boolean called;
+
+		@Autowired
+		public void validateDataSourceIsInitialized(DataSource dataSource) {
+			// Inject the datasource to validate it is initialized at the injection point
+			JdbcTemplate template = new JdbcTemplate(dataSource);
+			assertThat(template.queryForObject("SELECT COUNT(*) from BAR", Integer.class))
+					.isEqualTo(1);
+			this.called = true;
 		}
 
 	}
@@ -299,28 +303,6 @@ public class DataSourceAutoConfigurationTests {
 		@Override
 		public Logger getParentLogger() throws SQLFeatureNotSupportedException {
 			return mock(Logger.class);
-		}
-
-	}
-
-	private static final class HidePackagesClassLoader extends URLClassLoader {
-
-		private final String[] hiddenPackages;
-
-		private HidePackagesClassLoader(String... hiddenPackages) {
-			super(new URL[0], DataSourceAutoConfigurationTests.class.getClassLoader());
-			this.hiddenPackages = hiddenPackages;
-		}
-
-		@Override
-		protected Class<?> loadClass(String name, boolean resolve)
-				throws ClassNotFoundException {
-			for (String hiddenPackage : this.hiddenPackages) {
-				if (name.startsWith(hiddenPackage)) {
-					throw new ClassNotFoundException();
-				}
-			}
-			return super.loadClass(name, resolve);
 		}
 
 	}

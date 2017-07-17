@@ -97,7 +97,7 @@ public class EndpointDocumentation {
 
 	@Test
 	public void logfile() throws Exception {
-		this.mockMvc.perform(get("/logfile").accept(MediaType.TEXT_PLAIN))
+		this.mockMvc.perform(get("/application/logfile").accept(MediaType.TEXT_PLAIN))
 				.andExpect(status().isOk()).andDo(document("logfile"));
 	}
 
@@ -106,7 +106,7 @@ public class EndpointDocumentation {
 		FileCopyUtils.copy(getClass().getResourceAsStream("log.txt"),
 				new FileOutputStream(LOG_FILE));
 		this.mockMvc
-				.perform(get("/logfile").accept(MediaType.TEXT_PLAIN)
+				.perform(get("/application/logfile").accept(MediaType.TEXT_PLAIN)
 						.header(HttpHeaders.RANGE, "bytes=0-1024"))
 				.andExpect(status().isPartialContent())
 				.andDo(document("partial-logfile"));
@@ -115,7 +115,7 @@ public class EndpointDocumentation {
 	@Test
 	public void singleLogger() throws Exception {
 		this.mockMvc
-				.perform(get("/loggers/org.springframework.boot")
+				.perform(get("/application/loggers/org.springframework.boot")
 						.accept(MediaType.APPLICATION_JSON))
 				.andExpect(status().isOk()).andDo(document("single-logger"));
 	}
@@ -123,16 +123,17 @@ public class EndpointDocumentation {
 	@Test
 	public void setLogger() throws Exception {
 		this.mockMvc
-				.perform(post("/loggers/org.springframework.boot")
+				.perform(post("/application/loggers/org.springframework.boot")
 						.contentType(ActuatorMediaTypes.APPLICATION_ACTUATOR_V2_JSON)
 						.content("{\"configuredLevel\": \"DEBUG\"}"))
-				.andExpect(status().isOk()).andDo(document("set-logger"));
+				.andExpect(status().isNoContent()).andDo(document("set-logger"));
 	}
 
 	@Test
 	public void auditEvents() throws Exception {
 		this.mockMvc
-				.perform(get("/auditevents").param("after", "2016-11-01T10:00:00+0000")
+				.perform(get("/application/auditevents")
+						.param("after", "2016-11-01T10:00:00+0000")
 						.accept(ActuatorMediaTypes.APPLICATION_ACTUATOR_V2_JSON))
 				.andExpect(status().isOk()).andDo(document("auditevents"));
 	}
@@ -140,7 +141,7 @@ public class EndpointDocumentation {
 	@Test
 	public void auditEventsByPrincipal() throws Exception {
 		this.mockMvc
-				.perform(get("/auditevents").param("principal", "admin")
+				.perform(get("/application/auditevents").param("principal", "admin")
 						.param("after", "2016-11-01T10:00:00+0000")
 						.accept(ActuatorMediaTypes.APPLICATION_ACTUATOR_V2_JSON))
 				.andExpect(status().isOk())
@@ -150,7 +151,7 @@ public class EndpointDocumentation {
 	@Test
 	public void auditEventsByPrincipalAndType() throws Exception {
 		this.mockMvc
-				.perform(get("/auditevents").param("principal", "admin")
+				.perform(get("/application/auditevents").param("principal", "admin")
 						.param("after", "2016-11-01T10:00:00+0000")
 						.param("type", "AUTHENTICATION_SUCCESS")
 						.accept(ActuatorMediaTypes.APPLICATION_ACTUATOR_V2_JSON))
@@ -171,7 +172,7 @@ public class EndpointDocumentation {
 				String output = endpointPath.substring(1);
 				output = output.length() > 0 ? output : "./";
 				this.mockMvc
-						.perform(get(endpointPath)
+						.perform(get("/application" + endpointPath)
 								.accept(ActuatorMediaTypes.APPLICATION_ACTUATOR_V2_JSON))
 						.andExpect(status().isOk()).andDo(document(output))
 						.andDo(new ResultHandler() {
@@ -188,14 +189,10 @@ public class EndpointDocumentation {
 		}
 		File file = new File(RESTDOCS_OUTPUT_DIR + "/endpoints.adoc");
 		file.getParentFile().mkdirs();
-		PrintWriter writer = new PrintWriter(file, "UTF-8");
-		try {
+		try (PrintWriter writer = new PrintWriter(file, "UTF-8")) {
 			Template template = this.templates.createTemplate(
 					new File("src/restdoc/resources/templates/endpoints.adoc.tpl"));
 			template.make(model).writeTo(writer);
-		}
-		finally {
-			writer.close();
 		}
 	}
 

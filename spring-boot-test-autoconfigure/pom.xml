@@ -118,12 +118,22 @@
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.data</groupId>
+			<artifactId>spring-data-ldap</artifactId>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.data</groupId>
 			<artifactId>spring-data-mongodb</artifactId>
 			<optional>true</optional>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.data</groupId>
 			<artifactId>spring-data-neo4j</artifactId>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.data</groupId>
+			<artifactId>spring-data-redis</artifactId>
 			<optional>true</optional>
 		</dependency>
 		<dependency>
@@ -141,6 +151,7 @@
 			<artifactId>spring-security-test</artifactId>
 			<optional>true</optional>
 		</dependency>
+
 		<!-- Test -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -158,8 +169,23 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
+			<groupId>com.unboundid</groupId>
+			<artifactId>unboundid-ldapsdk</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.lettuce</groupId>
+			<artifactId>lettuce-core</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
 			<groupId>io.projectreactor</groupId>
 			<artifactId>reactor-core</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-pool2</artifactId>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
@@ -178,6 +204,11 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
+			<groupId>org.jooq</groupId>
+			<artifactId>jooq</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
 			<groupId>org.mongodb</groupId>
 			<artifactId>mongodb-driver-async</artifactId>
 			<optional>true</optional>
@@ -186,6 +217,11 @@
 			<groupId>org.mongodb</groupId>
 			<artifactId>mongodb-driver-reactivestreams</artifactId>
 			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>org.neo4j</groupId>
+			<artifactId>neo4j-ogm-http-driver</artifactId>
+			<scope>test</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.skyscreamer</groupId>

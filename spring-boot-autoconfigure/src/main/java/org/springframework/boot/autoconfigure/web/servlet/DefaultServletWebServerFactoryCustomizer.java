@@ -36,6 +36,7 @@ import org.eclipse.jetty.server.AbstractConnector;
 import org.eclipse.jetty.server.ConnectionFactory;
 import org.eclipse.jetty.server.Handler;
 import org.eclipse.jetty.server.HttpConfiguration;
+import org.eclipse.jetty.server.NCSARequestLog;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.ContextHandler;
 import org.eclipse.jetty.server.handler.HandlerCollection;
@@ -66,6 +67,7 @@ import org.springframework.util.StringUtils;
  *
  * @author Brian Clozel
  * @author Stephane Nicoll
+ * @author Olivier Lamy
  * @since 2.0.0
  */
 public class DefaultServletWebServerFactoryCustomizer
@@ -274,7 +276,7 @@ public class DefaultServletWebServerFactoryCustomizer
 					ProtocolHandler handler = connector.getProtocolHandler();
 					if (handler instanceof AbstractProtocol) {
 						AbstractProtocol<?> protocol = (AbstractProtocol<?>) handler;
-						protocol.setBacklog(acceptCount);
+						protocol.setAcceptCount(acceptCount);
 					}
 				}
 
@@ -470,11 +472,12 @@ public class DefaultServletWebServerFactoryCustomizer
 				customizeMaxHttpPostSize(factory,
 						undertowProperties.getMaxHttpPostSize());
 			}
-
 			if (serverProperties.getConnectionTimeout() != null) {
 				customizeConnectionTimeout(factory,
 						serverProperties.getConnectionTimeout());
 			}
+			factory.addDeploymentInfoCustomizers((deploymentInfo) -> deploymentInfo
+					.setEagerFilterInit(undertowProperties.isEagerFilterInit()));
 		}
 
 		private static void customizeConnectionTimeout(
@@ -540,6 +543,9 @@ public class DefaultServletWebServerFactoryCustomizer
 			if (serverProperties.getConnectionTimeout() != null) {
 				customizeConnectionTimeout(factory,
 						serverProperties.getConnectionTimeout());
+			}
+			if (jettyProperties.getAccesslog().isEnabled()) {
+				customizeAccessLog(factory, jettyProperties.getAccesslog());
 			}
 		}
 
@@ -635,6 +641,35 @@ public class DefaultServletWebServerFactoryCustomizer
 					}
 				}
 
+			});
+		}
+
+		private static void customizeAccessLog(JettyServletWebServerFactory factory,
+				final ServerProperties.Jetty.Accesslog properties) {
+			factory.addServerCustomizers(server -> {
+				NCSARequestLog log = new NCSARequestLog();
+				if (properties.getFilename() != null) {
+					log.setFilename(properties.getFilename());
+				}
+				if (properties.getFileDateFormat() != null) {
+					log.setFilenameDateFormat(properties.getFileDateFormat());
+				}
+				log.setRetainDays(properties.getRetentionPeriod());
+				log.setAppend(properties.isAppend());
+				log.setExtended(properties.isExtendedFormat());
+				if (properties.getDateFormat() != null) {
+					log.setLogDateFormat(properties.getDateFormat());
+				}
+				if (properties.getLocale() != null) {
+					log.setLogLocale(properties.getLocale());
+				}
+				if (properties.getTimeZone() != null) {
+					log.setLogTimeZone(properties.getTimeZone().getID());
+				}
+				log.setLogCookies(properties.isLogCookies());
+				log.setLogServer(properties.isLogServer());
+				log.setLogLatency(properties.isLogLatency());
+				server.setRequestLog(log);
 			});
 		}
 	}

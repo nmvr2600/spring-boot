@@ -18,11 +18,9 @@ package org.springframework.boot.autoconfigure.security.oauth2.resource;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionMessage;
@@ -33,7 +31,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingClass;
 import org.springframework.boot.autoconfigure.condition.NoneNestedConditions;
 import org.springframework.boot.autoconfigure.condition.SpringBootCondition;
-import org.springframework.boot.bind.RelaxedPropertyResolver;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ConditionContext;
 import org.springframework.context.annotation.Conditional;
@@ -49,7 +46,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpRequestExecution;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.http.client.ClientHttpResponse;
-import org.springframework.security.crypto.codec.Base64;
 import org.springframework.security.oauth2.client.OAuth2ClientContext;
 import org.springframework.security.oauth2.client.OAuth2RestOperations;
 import org.springframework.security.oauth2.client.resource.OAuth2ProtectedResourceDetails;
@@ -68,7 +64,6 @@ import org.springframework.social.connect.support.OAuth2ConnectionFactory;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
-import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
 /**
@@ -82,9 +77,6 @@ import org.springframework.web.client.RestTemplate;
 @Configuration
 @ConditionalOnMissingBean(AuthorizationServerEndpointsConfiguration.class)
 public class ResourceServerTokenServicesConfiguration {
-
-	private static final Log logger = LogFactory
-			.getLog(ResourceServerTokenServicesConfiguration.class);
 
 	@Bean
 	@ConditionalOnMissingBean
@@ -278,13 +270,7 @@ public class ResourceServerTokenServicesConfiguration {
 			JwtAccessTokenConverter converter = new JwtAccessTokenConverter();
 			String keyValue = this.resource.getJwt().getKeyValue();
 			if (!StringUtils.hasText(keyValue)) {
-				try {
-					keyValue = getKeyFromServer();
-				}
-				catch (ResourceAccessException ex) {
-					logger.warn("Failed to fetch token key (you may need to refresh "
-							+ "when the auth server is back)");
-				}
+				keyValue = getKeyFromServer();
 			}
 			if (StringUtils.hasText(keyValue) && !keyValue.startsWith("-----BEGIN")) {
 				converter.setSigningKey(keyValue);
@@ -312,7 +298,8 @@ public class ResourceServerTokenServicesConfiguration {
 			String username = this.resource.getClientId();
 			String password = this.resource.getClientSecret();
 			if (username != null && password != null) {
-				byte[] token = Base64.encode((username + ":" + password).getBytes());
+				byte[] token = Base64.getEncoder()
+						.encode((username + ":" + password).getBytes());
 				headers.add("Authorization", "Basic " + new String(token));
 			}
 			HttpEntity<Void> request = new HttpEntity<>(headers);
@@ -332,17 +319,17 @@ public class ResourceServerTokenServicesConfiguration {
 			ConditionMessage.Builder message = ConditionMessage
 					.forCondition("OAuth TokenInfo Condition");
 			Environment environment = context.getEnvironment();
-			RelaxedPropertyResolver resolver = new RelaxedPropertyResolver(environment,
-					"security.oauth2.resource.");
-			Boolean preferTokenInfo = resolver.getProperty("prefer-token-info",
-					Boolean.class);
+			Boolean preferTokenInfo = environment.getProperty(
+					"security.oauth2.resource.prefer-token-info", Boolean.class);
 			if (preferTokenInfo == null) {
 				preferTokenInfo = environment
 						.resolvePlaceholders("${OAUTH2_RESOURCE_PREFERTOKENINFO:true}")
 						.equals("true");
 			}
-			String tokenInfoUri = resolver.getProperty("token-info-uri");
-			String userInfoUri = resolver.getProperty("user-info-uri");
+			String tokenInfoUri = environment
+					.getProperty("security.oauth2.resource.token-info-uri");
+			String userInfoUri = environment
+					.getProperty("security.oauth2.resource.user-info-uri");
 			if (!StringUtils.hasLength(userInfoUri)
 					&& !StringUtils.hasLength(tokenInfoUri)) {
 				return ConditionOutcome
@@ -364,10 +351,11 @@ public class ResourceServerTokenServicesConfiguration {
 				AnnotatedTypeMetadata metadata) {
 			ConditionMessage.Builder message = ConditionMessage
 					.forCondition("OAuth JWT Condition");
-			RelaxedPropertyResolver resolver = new RelaxedPropertyResolver(
-					context.getEnvironment(), "security.oauth2.resource.jwt.");
-			String keyValue = resolver.getProperty("key-value");
-			String keyUri = resolver.getProperty("key-uri");
+			Environment environment = context.getEnvironment();
+			String keyValue = environment
+					.getProperty("security.oauth2.resource.jwt.key-value");
+			String keyUri = environment
+					.getProperty("security.oauth2.resource.jwt.key-uri");
 			if (StringUtils.hasText(keyValue) || StringUtils.hasText(keyUri)) {
 				return ConditionOutcome
 						.match(message.foundExactly("provided public key"));
@@ -385,9 +373,9 @@ public class ResourceServerTokenServicesConfiguration {
 				AnnotatedTypeMetadata metadata) {
 			ConditionMessage.Builder message = ConditionMessage
 					.forCondition("OAuth JWK Condition");
-			RelaxedPropertyResolver resolver = new RelaxedPropertyResolver(
-					context.getEnvironment(), "security.oauth2.resource.jwk.");
-			String keyUri = resolver.getProperty("key-set-uri");
+			Environment environment = context.getEnvironment();
+			String keyUri = environment
+					.getProperty("security.oauth2.resource.jwk.key-set-uri");
 			if (StringUtils.hasText(keyUri)) {
 				return ConditionOutcome
 						.match(message.foundExactly("provided jwk key set URI"));

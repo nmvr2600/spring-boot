@@ -42,7 +42,7 @@ import org.springframework.boot.actuate.trace.TraceProperties.Include;
 import org.springframework.boot.autoconfigure.web.servlet.error.ErrorAttributes;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
@@ -138,7 +138,7 @@ public class WebRequestTraceFilter extends OncePerRequestFilter implements Order
 		add(trace, Include.USER_PRINCIPAL, "userPrincipal",
 				(userPrincipal == null ? null : userPrincipal.getName()));
 		if (isIncluded(Include.PARAMETERS)) {
-			trace.put("parameters", request.getParameterMap());
+			trace.put("parameters", getParameterMapCopy(request));
 		}
 		add(trace, Include.QUERY_STRING, "query", request.getQueryString());
 		add(trace, Include.AUTH_TYPE, "authType", request.getAuthType());
@@ -149,7 +149,7 @@ public class WebRequestTraceFilter extends OncePerRequestFilter implements Order
 		if (isIncluded(Include.ERRORS) && exception != null
 				&& this.errorAttributes != null) {
 			trace.put("error", this.errorAttributes
-					.getErrorAttributes(new ServletRequestAttributes(request), true));
+					.getErrorAttributes(new ServletWebRequest(request), true));
 		}
 		return trace;
 	}
@@ -188,6 +188,10 @@ public class WebRequestTraceFilter extends OncePerRequestFilter implements Order
 			return "";
 		}
 		return value;
+	}
+
+	private Map<String, String[]> getParameterMapCopy(HttpServletRequest request) {
+		return new LinkedHashMap<String, String[]>(request.getParameterMap());
 	}
 
 	/**

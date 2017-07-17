@@ -21,7 +21,6 @@ import java.util.Collections;
 import java.util.List;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.boot.context.properties.NestedConfigurationProperty;
 import org.springframework.context.ResourceLoaderAware;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
@@ -86,7 +85,16 @@ public class ResourceProperties implements ResourceLoaderAware {
 	}
 
 	public void setStaticLocations(String[] staticLocations) {
-		this.staticLocations = staticLocations;
+		this.staticLocations = appendSlashIfNecessary(staticLocations);
+	}
+
+	private String[] appendSlashIfNecessary(String[] staticLocations) {
+		String[] normalized = new String[staticLocations.length];
+		for (int i = 0; i < staticLocations.length; i++) {
+			String location = staticLocations[i];
+			normalized[i] = (location.endsWith("/") ? location : location + "/");
+		}
+		return normalized;
 	}
 
 	public Resource getWelcomePage() {
@@ -117,7 +125,7 @@ public class ResourceProperties implements ResourceLoaderAware {
 		return result;
 	}
 
-	public List<Resource> getFaviconLocations() {
+	public List<Resource> resolveFaviconLocations() {
 		List<Resource> locations = new ArrayList<>(this.staticLocations.length + 1);
 		if (this.resourceLoader != null) {
 			for (String location : this.staticLocations) {
@@ -175,7 +183,6 @@ public class ResourceProperties implements ResourceLoaderAware {
 		 */
 		private boolean gzipped = false;
 
-		@NestedConfigurationProperty
 		private final Strategy strategy = new Strategy();
 
 		/**
@@ -233,10 +240,8 @@ public class ResourceProperties implements ResourceLoaderAware {
 	 */
 	public static class Strategy {
 
-		@NestedConfigurationProperty
 		private final Fixed fixed = new Fixed();
 
-		@NestedConfigurationProperty
 		private final Content content = new Content();
 
 		public Fixed getFixed() {

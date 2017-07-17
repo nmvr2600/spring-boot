@@ -22,11 +22,12 @@ import java.net.URLClassLoader;
 import com.hazelcast.util.Base64;
 import org.junit.After;
 import org.junit.Test;
+import org.neo4j.ogm.config.AutoIndexMode;
 import org.neo4j.ogm.config.Configuration;
 import org.neo4j.ogm.config.Credentials;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.test.util.EnvironmentTestUtils;
+import org.springframework.boot.test.util.TestPropertyValues;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -71,6 +72,15 @@ public class Neo4jPropertiesTests {
 	}
 
 	@Test
+	public void httpsUriUseHttpDriver() {
+		Neo4jProperties properties = load(true,
+				"spring.data.neo4j.uri=https://localhost:7474");
+		Configuration configuration = properties.createConfiguration();
+		assertDriver(configuration, Neo4jProperties.HTTP_DRIVER,
+				"https://localhost:7474");
+	}
+
+	@Test
 	public void boltUriUseBoltDriver() {
 		Neo4jProperties properties = load(true,
 				"spring.data.neo4j.uri=bolt://localhost:7687");
@@ -104,6 +114,20 @@ public class Neo4jPropertiesTests {
 		Configuration configuration = properties.createConfiguration();
 		assertDriver(configuration, Neo4jProperties.HTTP_DRIVER, "http://my-server:7474");
 		assertCredentials(configuration, "user", "secret");
+	}
+
+	@Test
+	public void autoIndexNoneByDefault() {
+		Neo4jProperties properties = load(true);
+		Configuration configuration = properties.createConfiguration();
+		assertThat(configuration.getAutoIndex()).isEqualTo(AutoIndexMode.NONE);
+	}
+
+	@Test
+	public void autoIndexCanBeConfigured() {
+		Neo4jProperties properties = load(true, "spring.data.neo4j.auto-index=validate");
+		Configuration configuration = properties.createConfiguration();
+		assertThat(configuration.getAutoIndex()).isEqualTo(AutoIndexMode.VALIDATE);
 	}
 
 	@Test
@@ -167,7 +191,7 @@ public class Neo4jPropertiesTests {
 			}
 
 		});
-		EnvironmentTestUtils.addEnvironment(ctx, environment);
+		TestPropertyValues.of(environment).applyTo(ctx);
 		ctx.register(TestConfiguration.class);
 		ctx.refresh();
 		this.context = ctx;
