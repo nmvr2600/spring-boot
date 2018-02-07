@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,15 +19,14 @@ package org.springframework.boot.actuate.autoconfigure.cloudfoundry;
 import java.util.Arrays;
 import java.util.List;
 
-import javax.servlet.http.HttpServletRequest;
-
 /**
  * The specific access level granted to the cloud foundry user that's calling the
  * endpoints.
  *
  * @author Madhura Bhave
+ * @since 2.0.0
  */
-enum AccessLevel {
+public enum AccessLevel {
 
 	/**
 	 * Restricted access to a limited set of endpoints.
@@ -39,29 +38,21 @@ enum AccessLevel {
 	 */
 	FULL;
 
-	private static final String REQUEST_ATTRIBUTE = "cloudFoundryAccessLevel";
+	public static final String REQUEST_ATTRIBUTE = "cloudFoundryAccessLevel";
 
-	private final List<String> endpointPaths;
+	private final List<String> endpointIds;
 
-	AccessLevel(String... endpointPaths) {
-		this.endpointPaths = Arrays.asList(endpointPaths);
+	AccessLevel(String... endpointIds) {
+		this.endpointIds = Arrays.asList(endpointIds);
 	}
 
 	/**
 	 * Returns if the access level should allow access to the specified endpoint path.
-	 * @param endpointPath the endpoint path
+	 * @param endpointId the endpoint ID to check
 	 * @return {@code true} if access is allowed
 	 */
-	public boolean isAccessAllowed(String endpointPath) {
-		return this.endpointPaths.isEmpty() || this.endpointPaths.contains(endpointPath);
-	}
-
-	public void put(HttpServletRequest request) {
-		request.setAttribute(REQUEST_ATTRIBUTE, this);
-	}
-
-	public static AccessLevel get(HttpServletRequest request) {
-		return (AccessLevel) request.getAttribute(REQUEST_ATTRIBUTE);
+	public boolean isAccessAllowed(String endpointId) {
+		return this.endpointIds.isEmpty() || this.endpointIds.contains(endpointId);
 	}
 
 }

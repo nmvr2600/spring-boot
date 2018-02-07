@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package org.springframework.boot.devtools.classpath;
 
 import java.io.File;
 import java.net.URL;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -55,7 +56,7 @@ public class ClassPathFileSystemWatcherTests {
 	public TemporaryFolder temp = new TemporaryFolder();
 
 	@Test
-	public void urlsMustNotBeNull() throws Exception {
+	public void urlsMustNotBeNull() {
 		this.thrown.expect(IllegalArgumentException.class);
 		this.thrown.expectMessage("Urls must not be null");
 		URL[] urls = null;
@@ -69,7 +70,7 @@ public class ClassPathFileSystemWatcherTests {
 		Map<String, Object> properties = new HashMap<>();
 		File folder = this.temp.newFolder();
 		List<URL> urls = new ArrayList<>();
-		urls.add(new URL("http://spring.io"));
+		urls.add(new URL("https://spring.io"));
 		urls.add(folder.toURI().toURL());
 		properties.put("urls", urls);
 		MapPropertySource propertySource = new MapPropertySource("test", properties);
@@ -104,7 +105,8 @@ public class ClassPathFileSystemWatcherTests {
 
 		@Bean
 		public ClassPathFileSystemWatcher watcher() {
-			FileSystemWatcher watcher = new FileSystemWatcher(false, 100, 10);
+			FileSystemWatcher watcher = new FileSystemWatcher(false,
+					Duration.ofMillis(100), Duration.ofMillis(10));
 			URL[] urls = this.environment.getProperty("urls", URL[].class);
 			return new ClassPathFileSystemWatcher(
 					new MockFileSystemWatcherFactory(watcher), restartStrategy(), urls);

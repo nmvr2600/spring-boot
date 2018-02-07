@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,12 +58,12 @@ public class DataSourceProperties
 	private Environment environment;
 
 	/**
-	 * Name of the datasource.
+	 * Name of the datasource. Default to "testdb" when using an embedded database.
 	 */
-	private String name = "testdb";
+	private String name;
 
 	/**
-	 * Generate a random datasource name.
+	 * Whether to generate a random datasource name.
 	 */
 	private boolean generateUniqueName;
 
@@ -84,7 +84,7 @@ public class DataSourceProperties
 	private String url;
 
 	/**
-	 * Login user of the database.
+	 * Login username of the database.
 	 */
 	private String username;
 
@@ -105,7 +105,7 @@ public class DataSourceProperties
 	private DataSourceInitializationMode initializationMode = DataSourceInitializationMode.EMBEDDED;
 
 	/**
-	 * Platform to use in the DDL or DML scripts (e.g. schema-${platform}.sql or
+	 * Platform to use in the DDL or DML scripts (such as schema-${platform}.sql or
 	 * data-${platform}.sql).
 	 */
 	private String platform = "all";
@@ -131,7 +131,7 @@ public class DataSourceProperties
 	private List<String> data;
 
 	/**
-	 * User of the database to execute DML scripts.
+	 * Username of the database to execute DML scripts.
 	 */
 	private String dataUsername;
 
@@ -141,7 +141,7 @@ public class DataSourceProperties
 	private String dataPassword;
 
 	/**
-	 * Do not stop if an error occurs while initializing the database.
+	 * Whether to stop if an error occurs while initializing the database.
 	 */
 	private boolean continueOnError = false;
 
@@ -237,15 +237,12 @@ public class DataSourceProperties
 			return this.driverClassName;
 		}
 		String driverClassName = null;
-
 		if (StringUtils.hasText(this.url)) {
 			driverClassName = DatabaseDriver.fromJdbcUrl(this.url).getDriverClassName();
 		}
-
 		if (!StringUtils.hasText(driverClassName)) {
 			driverClassName = this.embeddedDatabaseConnection.getDriverClassName();
 		}
-
 		if (!StringUtils.hasText(driverClassName)) {
 			throw new DataSourceBeanCreationException(this.embeddedDatabaseConnection,
 					this.environment, "driver class");
@@ -289,7 +286,9 @@ public class DataSourceProperties
 		if (StringUtils.hasText(this.url)) {
 			return this.url;
 		}
-		String url = this.embeddedDatabaseConnection.getUrl(determineDatabaseName());
+		String databaseName = determineDatabaseName();
+		String url = (databaseName == null ? null
+				: this.embeddedDatabaseConnection.getUrl(databaseName));
 		if (!StringUtils.hasText(url)) {
 			throw new DataSourceBeanCreationException(this.embeddedDatabaseConnection,
 					this.environment, "url");
@@ -297,14 +296,25 @@ public class DataSourceProperties
 		return url;
 	}
 
-	private String determineDatabaseName() {
+	/**
+	 * Determine the name to used based on this configuration.
+	 * @return the database name to use or {@code null}
+	 * @since 2.0.0
+	 */
+	public String determineDatabaseName() {
 		if (this.generateUniqueName) {
 			if (this.uniqueName == null) {
 				this.uniqueName = UUID.randomUUID().toString();
 			}
 			return this.uniqueName;
 		}
-		return this.name;
+		if (StringUtils.hasLength(this.name)) {
+			return this.name;
+		}
+		if (this.embeddedDatabaseConnection != EmbeddedDatabaseConnection.NONE) {
+			return "testdb";
+		}
+		return null;
 	}
 
 	/**

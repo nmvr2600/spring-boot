@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package org.springframework.boot.context.properties.bind;
 
+import java.lang.annotation.Annotation;
 import java.util.Collection;
 import java.util.List;
 import java.util.TreeSet;
@@ -48,27 +49,42 @@ abstract class IndexedElementsBinder<T> extends AggregateBinder<T> {
 		super(context);
 	}
 
+	@Override
+	protected boolean isAllowRecursiveBinding(ConfigurationPropertySource source) {
+		return source == null || source instanceof IterableConfigurationPropertySource;
+	}
+
+	/**
+	 * Bind indexed elements to the supplied collection.
+	 * @param name The name of the property to bind
+	 * @param target the target bindable
+	 * @param elementBinder the binder to use for elements
+	 * @param aggregateType the aggregate type, may be a collection or an array
+	 * @param elementType the element type
+	 * @param result the destination for results
+	 */
 	protected final void bindIndexed(ConfigurationPropertyName name, Bindable<?> target,
-			AggregateElementBinder elementBinder, IndexedCollectionSupplier collection,
-			ResolvableType aggregateType, ResolvableType elementType) {
+			AggregateElementBinder elementBinder, ResolvableType aggregateType,
+			ResolvableType elementType, IndexedCollectionSupplier result) {
 		for (ConfigurationPropertySource source : getContext().getSources()) {
-			bindIndexed(source, name, elementBinder, collection, aggregateType,
+			bindIndexed(source, name, target, elementBinder, result, aggregateType,
 					elementType);
-			if (collection.wasSupplied() && collection.get() != null) {
+			if (result.wasSupplied() && result.get() != null) {
 				return;
 			}
 		}
 	}
 
 	private void bindIndexed(ConfigurationPropertySource source,
-			ConfigurationPropertyName root, AggregateElementBinder elementBinder,
-			IndexedCollectionSupplier collection, ResolvableType aggregateType,
-			ResolvableType elementType) {
+			ConfigurationPropertyName root, Bindable<?> target,
+			AggregateElementBinder elementBinder, IndexedCollectionSupplier collection,
+			ResolvableType aggregateType, ResolvableType elementType) {
 		ConfigurationProperty property = source.getConfigurationProperty(root);
 		if (property != null) {
-			Object aggregate = convert(property.getValue(), aggregateType);
-			ResolvableType collectionType = ResolvableType
-					.forClassWithGenerics(collection.get().getClass(), elementType);
+			Object aggregate = convert(property.getValue(), aggregateType,
+					target.getAnnotations());
+			ResolvableType collectionType = forClassWithGenerics(
+					collection.get().getClass(), elementType);
 			Collection<Object> elements = convert(aggregate, collectionType);
 			collection.get().addAll(elements);
 		}
@@ -122,14 +138,26 @@ abstract class IndexedElementsBinder<T> extends AggregateBinder<T> {
 		}
 	}
 
-	private <C> C convert(Object value, ResolvableType type) {
+	private <C> C convert(Object value, ResolvableType type, Annotation... annotations) {
 		value = getContext().getPlaceholdersResolver().resolvePlaceholders(value);
 		BinderConversionService conversionService = getContext().getConversionService();
-		return ResolvableTypeDescriptor.forType(type).convert(conversionService, value);
+		return ResolvableTypeDescriptor.forType(type, annotations)
+				.convert(conversionService, value);
+	}
+
+	// Work around for SPR-16456
+	protected static ResolvableType forClassWithGenerics(Class<?> type,
+			ResolvableType... generics) {
+		ResolvableType[] resolvedGenerics = new ResolvableType[generics.length];
+		for (int i = 0; i < generics.length; i++) {
+			resolvedGenerics[i] = forClassWithGenerics(generics[i].resolve(),
+					generics[i].getGenerics());
+		}
+		return ResolvableType.forClassWithGenerics(type, resolvedGenerics);
 	}
 
 	/**
-	 * {@link AggregateBinder.AggregateSupplier AggregateSupplier} for an index
+	 * {@link AggregateBinder.AggregateSupplier AggregateSupplier} for an indexed
 	 * collection.
 	 */
 	protected static class IndexedCollectionSupplier

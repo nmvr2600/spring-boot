@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ package org.springframework.boot.web.servlet.context;
 
 import org.springframework.boot.web.context.WebServerInitializedEvent;
 import org.springframework.boot.web.server.WebServer;
-import org.springframework.util.StringUtils;
 
 /**
  * Event to be published after the {@link ServletWebServerApplicationContext} is refreshed
@@ -36,30 +35,21 @@ public class ServletWebServerInitializedEvent extends WebServerInitializedEvent 
 
 	private final ServletWebServerApplicationContext applicationContext;
 
-	public ServletWebServerInitializedEvent(WebServer source,
+	public ServletWebServerInitializedEvent(WebServer webServer,
 			ServletWebServerApplicationContext applicationContext) {
-		super(source);
+		super(webServer);
 		this.applicationContext = applicationContext;
 	}
 
 	/**
 	 * Access the application context that the server was created in. Sometimes it is
 	 * prudent to check that this matches expectations (like being equal to the current
-	 * context) before acting on the server server itself.
+	 * context) before acting on the server itself.
 	 * @return the applicationContext that the server was created from
 	 */
 	@Override
 	public ServletWebServerApplicationContext getApplicationContext() {
 		return this.applicationContext;
-	}
-
-	@Override
-	public String getServerId() {
-		String name = this.applicationContext.getNamespace();
-		if (StringUtils.isEmpty(name)) {
-			name = "server";
-		}
-		return name;
 	}
 
 }

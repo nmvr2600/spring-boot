@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,15 +22,29 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-import org.springframework.boot.actuate.endpoint.DefaultEnablement;
-import org.springframework.boot.actuate.endpoint.EndpointExposure;
-
 /**
- * Identifies a type as being an endpoint.
+ * Identifies a type as being an actuator endpoint that provides information about the
+ * running application. Endpoints can be exposed over a variety of technologies including
+ * JMX and HTTP.
+ * <p>
+ * Most {@code @Endpoint} classes will declare one or more
+ * {@link ReadOperation @ReadOperation}, {@link WriteOperation @WriteOperation},
+ * {@link DeleteOperation @DeleteOperation} annotated methods which will be automatically
+ * adapted to the exposing technology (JMX, Spring MVC, Spring WebFlux, Jersey etc.).
+ * <p>
+ * {@code @Endpoint} represents the lowest common denominator for endpoints and
+ * intentionally limits the sorts of operation methods that may be defined in order to
+ * support the broadest possible range of exposure technologies. If you need deeper
+ * support for a specific technology you can either write an endpoint that is
+ * {@link FilteredEndpoint filtered} to a certain technology, or provide
+ * {@link EndpointExtension extension} for the broader endpoint.
  *
  * @author Andy Wilkinson
+ * @author Phillip Webb
  * @since 2.0.0
- * @see AnnotationEndpointDiscoverer
+ * @see EndpointExtension
+ * @see FilteredEndpoint
+ * @see EndpointDiscoverer
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
@@ -41,20 +55,12 @@ public @interface Endpoint {
 	 * The id of the endpoint.
 	 * @return the id
 	 */
-	String id();
+	String id() default "";
 
 	/**
-	 * Defines the {@link EndpointExposure technologies} over which the endpoint should be
-	 * exposed. By default, all technologies are supported.
-	 * @return the supported endpoint exposure technologies
+	 * If the endpoint should be enabled or disabled by default.
+	 * @return {@code true} if the endpoint is enabled by default
 	 */
-	EndpointExposure[] exposure() default {};
-
-	/**
-	 * Defines the {@link DefaultEnablement} of the endpoint. By default, the endpoint's
-	 * enablement defaults to the "default" settings.
-	 * @return the default enablement
-	 */
-	DefaultEnablement defaultEnablement() default DefaultEnablement.NEUTRAL;
+	boolean enableByDefault() default true;
 
 }

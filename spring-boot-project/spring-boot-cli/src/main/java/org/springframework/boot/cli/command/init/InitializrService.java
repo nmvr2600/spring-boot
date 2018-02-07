@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package org.springframework.boot.cli.command.init;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
@@ -46,8 +47,6 @@ import org.springframework.util.StringUtils;
 class InitializrService {
 
 	private static final String FILENAME_HEADER_PREFIX = "filename=\"";
-
-	private static final Charset UTF_8 = Charset.forName("UTF-8");
 
 	/**
 	 * Accept header to use to retrieve the json meta-data.
@@ -241,7 +240,7 @@ class InitializrService {
 	private String getContent(HttpEntity entity) throws IOException {
 		ContentType contentType = ContentType.getOrDefault(entity);
 		Charset charset = contentType.getCharset();
-		charset = (charset != null ? charset : UTF_8);
+		charset = (charset != null ? charset : StandardCharsets.UTF_8);
 		byte[] content = FileCopyUtils.copyToByteArray(entity.getContent());
 		return new String(content, charset);
 	}
@@ -252,7 +251,7 @@ class InitializrService {
 			int start = value.indexOf(FILENAME_HEADER_PREFIX);
 			if (start != -1) {
 				value = value.substring(start + FILENAME_HEADER_PREFIX.length());
-				int end = value.indexOf("\"");
+				int end = value.indexOf('\"');
 				if (end != -1) {
 					return value.substring(0, end);
 				}

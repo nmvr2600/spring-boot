@@ -64,19 +64,20 @@ public class WebTestClientSpringBootTestIntegrationTests {
 	}
 
 	@Test
-	public void shouldHaveRealService() throws Exception {
+	public void shouldHaveRealService() {
 		assertThat(this.applicationContext.getBeansOfType(ExampleRealService.class))
 				.hasSize(1);
 	}
 
 	@Configuration
 	static class TestConfiguration {
+
 		@Bean
-		public SecurityWebFilterChain springSecurityFilterChain(ServerHttpSecurity http)
-				throws Exception {
+		public SecurityWebFilterChain springSecurityFilterChain(ServerHttpSecurity http) {
 			http.authorizeExchange().anyExchange().permitAll();
 			return http.build();
 		}
+
 	}
 
 }

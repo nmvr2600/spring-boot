@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -120,6 +120,8 @@ public class PropertiesLauncher extends Launcher {
 	public static final String SET_SYSTEM_PROPERTIES = "loader.system";
 
 	private static final Pattern WORD_SEPARATOR = Pattern.compile("\\W+");
+
+	private static final String NESTED_ARCHIVE_SEPARATOR = "!" + File.separator;
 
 	private final File home;
 
@@ -483,11 +485,18 @@ public class PropertiesLauncher extends Launcher {
 	}
 
 	private Archive getArchive(File file) throws IOException {
+		if (isNestedArchivePath(file)) {
+			return null;
+		}
 		String name = file.getName().toLowerCase();
 		if (name.endsWith(".jar") || name.endsWith(".zip")) {
 			return new JarFileArchive(file);
 		}
 		return null;
+	}
+
+	private boolean isNestedArchivePath(File file) {
+		return file.getPath().contains(NESTED_ARCHIVE_SEPARATOR);
 	}
 
 	private List<Archive> getNestedArchives(String path) throws Exception {
@@ -498,8 +507,8 @@ public class PropertiesLauncher extends Launcher {
 			// If home dir is same as parent archive, no need to add it twice.
 			return null;
 		}
-		if (root.contains("!")) {
-			int index = root.indexOf("!");
+		int index = root.indexOf('!');
+		if (index != -1) {
 			File file = new File(this.home, root.substring(0, index));
 			if (root.startsWith("jar:file:")) {
 				file = new File(root.substring("jar:file:".length(), index));
@@ -555,7 +564,8 @@ public class PropertiesLauncher extends Launcher {
 		if (path.startsWith("./")) {
 			path = path.substring(2);
 		}
-		if (path.toLowerCase().endsWith(".jar") || path.toLowerCase().endsWith(".zip")) {
+		String lowerCasePath = path.toLowerCase();
+		if (lowerCasePath.endsWith(".jar") || lowerCasePath.endsWith(".zip")) {
 			return path;
 		}
 		if (path.endsWith("/*")) {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -111,8 +111,7 @@ abstract class RedisConnectionConfiguration {
 
 	private List<RedisNode> createSentinels(RedisProperties.Sentinel sentinel) {
 		List<RedisNode> nodes = new ArrayList<>();
-		for (String node : StringUtils
-				.commaDelimitedListToStringArray(sentinel.getNodes())) {
+		for (String node : sentinel.getNodes()) {
 			try {
 				String[] parts = StringUtils.split(node, ":");
 				Assert.state(parts.length == 2, "Must be defined as 'host:port'");
@@ -133,7 +132,7 @@ abstract class RedisConnectionConfiguration {
 			String password = null;
 			if (uri.getUserInfo() != null) {
 				password = uri.getUserInfo();
-				int index = password.lastIndexOf(":");
+				int index = password.indexOf(':');
 				if (index >= 0) {
 					password = password.substring(index + 1);
 				}

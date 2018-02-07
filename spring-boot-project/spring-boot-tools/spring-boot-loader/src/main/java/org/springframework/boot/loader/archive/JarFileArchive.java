@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -112,8 +112,8 @@ public class JarFileArchive implements Archive {
 
 	private Archive getUnpackedNestedArchive(JarEntry jarEntry) throws IOException {
 		String name = jarEntry.getName();
-		if (name.lastIndexOf("/") != -1) {
-			name = name.substring(name.lastIndexOf("/") + 1);
+		if (name.lastIndexOf('/') != -1) {
+			name = name.substring(name.lastIndexOf('/') + 1);
 		}
 		File file = new File(getTempUnpackFolder(), name);
 		if (!file.exists() || file.length() != jarEntry.getSize()) {
@@ -149,7 +149,7 @@ public class JarFileArchive implements Archive {
 				ResourceAccess.ONCE);
 				OutputStream outputStream = new FileOutputStream(file)) {
 			byte[] buffer = new byte[BUFFER_SIZE];
-			int bytesRead = -1;
+			int bytesRead;
 			while ((bytesRead = inputStream.read(buffer)) != -1) {
 				outputStream.write(buffer, 0, bytesRead);
 			}

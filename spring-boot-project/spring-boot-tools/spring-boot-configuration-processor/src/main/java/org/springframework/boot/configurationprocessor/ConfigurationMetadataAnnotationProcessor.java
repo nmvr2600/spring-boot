@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,13 +19,15 @@ package org.springframework.boot.configurationprocessor;
 import java.io.FileNotFoundException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.ProcessingEnvironment;
@@ -41,8 +43,10 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.ElementFilter;
 import javax.lang.model.util.Elements;
 import javax.tools.Diagnostic.Kind;
 
@@ -65,6 +69,9 @@ import org.springframework.boot.configurationprocessor.metadata.ItemMetadata;
 @SupportedAnnotationTypes({ "*" })
 public class ConfigurationMetadataAnnotationProcessor extends AbstractProcessor {
 
+	static final String ADDITIONAL_METADATA_LOCATIONS_OPTION = "org.springframework.boot."
+			+ "configurationprocessor.additionalMetadataLocations";
+
 	static final String CONFIGURATION_PROPERTIES_ANNOTATION = "org.springframework.boot."
 			+ "context.properties.ConfigurationProperties";
 
@@ -77,11 +84,19 @@ public class ConfigurationMetadataAnnotationProcessor extends AbstractProcessor 
 	static final String ENDPOINT_ANNOTATION = "org.springframework.boot.actuate."
 			+ "endpoint.annotation.Endpoint";
 
+	static final String READ_OPERATION_ANNOTATION = "org.springframework.boot.actuate."
+			+ "endpoint.annotation.ReadOperation";
+
+	static final String NULLABLE_ANNOTATION = "org.springframework.lang.Nullable";
+
 	static final String LOMBOK_DATA_ANNOTATION = "lombok.Data";
 
 	static final String LOMBOK_GETTER_ANNOTATION = "lombok.Getter";
 
 	static final String LOMBOK_SETTER_ANNOTATION = "lombok.Setter";
+
+	private static final Set<String> SUPPORTED_OPTIONS = Collections.unmodifiableSet(
+			new HashSet<>(Arrays.asList(ADDITIONAL_METADATA_LOCATIONS_OPTION)));
 
 	private MetadataStore metadataStore;
 
@@ -109,9 +124,18 @@ public class ConfigurationMetadataAnnotationProcessor extends AbstractProcessor 
 		return ENDPOINT_ANNOTATION;
 	}
 
+	protected String readOperationAnnotation() {
+		return READ_OPERATION_ANNOTATION;
+	}
+
 	@Override
 	public SourceVersion getSupportedSourceVersion() {
 		return SourceVersion.latestSupported();
+	}
+
+	@Override
+	public Set<String> getSupportedOptions() {
+		return SUPPORTED_OPTIONS;
 	}
 
 	@Override
@@ -145,9 +169,8 @@ public class ConfigurationMetadataAnnotationProcessor extends AbstractProcessor 
 		}
 		TypeElement endpointType = elementUtils.getTypeElement(endpointAnnotation());
 		if (endpointType != null) { // Is @Endpoint available
-			for (Element element : roundEnv.getElementsAnnotatedWith(endpointType)) {
-				processEndpoint(element);
-			}
+			getElementsAnnotatedOrMetaAnnotatedWith(roundEnv, endpointType)
+					.forEach(this::processEndpoint);
 		}
 		if (roundEnv.processingOver()) {
 			try {
@@ -155,6 +178,41 @@ public class ConfigurationMetadataAnnotationProcessor extends AbstractProcessor 
 			}
 			catch (Exception ex) {
 				throw new IllegalStateException("Failed to write metadata", ex);
+			}
+		}
+		return false;
+	}
+
+	private Map<Element, List<Element>> getElementsAnnotatedOrMetaAnnotatedWith(
+			RoundEnvironment roundEnv, TypeElement annotation) {
+		DeclaredType annotationType = (DeclaredType) annotation.asType();
+		Map<Element, List<Element>> result = new LinkedHashMap<>();
+		for (Element element : roundEnv.getRootElements()) {
+			LinkedList<Element> stack = new LinkedList<>();
+			stack.push(element);
+			collectElementsAnnotatedOrMetaAnnotatedWith(annotationType, stack);
+			stack.removeFirst();
+			if (!stack.isEmpty()) {
+				result.put(element, Collections.unmodifiableList(stack));
+			}
+		}
+		return result;
+	}
+
+	private boolean collectElementsAnnotatedOrMetaAnnotatedWith(
+			DeclaredType annotationType, LinkedList<Element> stack) {
+		Element element = stack.peekLast();
+		for (AnnotationMirror annotation : this.processingEnv.getElementUtils()
+				.getAllAnnotationMirrors(element)) {
+			Element annotationElement = annotation.getAnnotationType().asElement();
+			if (!stack.contains(annotationElement)) {
+				stack.addLast(annotationElement);
+				if (annotationElement.equals(annotationType.asElement())) {
+					return true;
+				}
+				if (!collectElementsAnnotatedOrMetaAnnotatedWith(annotationType, stack)) {
+					stack.removeLast();
+				}
 			}
 		}
 		return false;
@@ -348,9 +406,10 @@ public class ConfigurationMetadataAnnotationProcessor extends AbstractProcessor 
 		}
 	}
 
-	private void processEndpoint(Element element) {
+	private void processEndpoint(Element element, List<Element> annotations) {
 		try {
-			AnnotationMirror annotation = getAnnotation(element, endpointAnnotation());
+			String annotationName = this.typeUtils.getQualifiedName(annotations.get(0));
+			AnnotationMirror annotation = getAnnotation(element, annotationName);
 			if (element instanceof TypeElement) {
 				processEndpoint(annotation, (TypeElement) element);
 			}
@@ -367,55 +426,41 @@ public class ConfigurationMetadataAnnotationProcessor extends AbstractProcessor 
 		if (endpointId == null || "".equals(endpointId)) {
 			return; // Can't process that endpoint
 		}
-		Boolean enabledByDefault = determineEnabledByDefault(
-				elementValues.get("defaultEnablement"));
+		String endpointKey = ItemMetadata.newItemMetadataPrefix("management.endpoint.",
+				endpointId);
+		Boolean enabledByDefault = (Boolean) elementValues.get("enableByDefault");
 		String type = this.typeUtils.getQualifiedName(element);
-		this.metadataCollector
-				.add(ItemMetadata.newGroup(endpointKey(endpointId), type, type, null));
-		this.metadataCollector.add(ItemMetadata.newProperty(endpointKey(endpointId),
-				"enabled", Boolean.class.getName(), type, null,
-				String.format("Enable the %s endpoint.", endpointId), enabledByDefault,
-				null));
-		this.metadataCollector.add(ItemMetadata.newProperty(endpointKey(endpointId),
-				"cache.time-to-live", Long.class.getName(), type, null,
-				"Maximum time in milliseconds that a response can be cached.", 0, null));
-		EndpointExposure endpointTypes = EndpointExposure
-				.parse(elementValues.get("exposure"));
-		if (endpointTypes.hasJmx()) {
-			this.metadataCollector.add(ItemMetadata.newProperty(
-					endpointKey(endpointId + ".jmx"), "enabled", Boolean.class.getName(),
-					type, null,
-					String.format("Expose the %s endpoint as a JMX MBean.", endpointId),
-					enabledByDefault, null));
-		}
-		if (endpointTypes.hasWeb()) {
-			this.metadataCollector.add(ItemMetadata.newProperty(
-					endpointKey(endpointId + ".web"), "enabled", Boolean.class.getName(),
-					type, null, String.format("Expose the %s endpoint as a Web endpoint.",
-							endpointId),
-					enabledByDefault, null));
-			this.metadataCollector.add(ItemMetadata.newProperty(
-					endpointKey(endpointId), "web.path", String.class.getName(), type,
-					null, String.format("Path of the %s endpoint.", endpointId),
-					endpointId, null));
+		this.metadataCollector.add(ItemMetadata.newGroup(endpointKey, type, type, null));
+		this.metadataCollector.add(ItemMetadata.newProperty(endpointKey, "enabled",
+				Boolean.class.getName(), type, null,
+				String.format("Whether to enable the %s endpoint.", endpointId),
+				(enabledByDefault == null ? true : enabledByDefault), null));
+		if (hasMainReadOperation(element)) {
+			this.metadataCollector.add(ItemMetadata.newProperty(endpointKey,
+					"cache.time-to-live", Duration.class.getName(), type, null,
+					"Maximum time that a response can be cached.", 0, null));
 		}
 	}
 
-	private Boolean determineEnabledByDefault(Object defaultEnablement) {
-		if (defaultEnablement != null) {
-			String value = String.valueOf(defaultEnablement);
-			if ("ENABLED".equals(value)) {
+	private boolean hasMainReadOperation(TypeElement element) {
+		for (ExecutableElement method : ElementFilter
+				.methodsIn(element.getEnclosedElements())) {
+			if (hasAnnotation(method, readOperationAnnotation())
+					&& (TypeKind.VOID != method.getReturnType().getKind())
+					&& hasNoOrOptionalParameters(method)) {
 				return true;
 			}
-			if ("DISABLED".equals(value)) {
+		}
+		return false;
+	}
+
+	private boolean hasNoOrOptionalParameters(ExecutableElement method) {
+		for (VariableElement parameter : method.getParameters()) {
+			if (!hasAnnotation(parameter, NULLABLE_ANNOTATION)) {
 				return false;
 			}
 		}
-		return null;
-	}
-
-	private String endpointKey(String suffix) {
-		return "endpoints." + suffix;
+		return true;
 	}
 
 	private boolean isNested(Element returnType, VariableElement field,
@@ -536,48 +581,6 @@ public class ConfigurationMetadataAnnotationProcessor extends AbstractProcessor 
 
 	private void log(Kind kind, String msg) {
 		this.processingEnv.getMessager().printMessage(kind, msg);
-	}
-
-	private static class EndpointExposure {
-
-		private static final List<String> ALL = Arrays.asList("JMX", "WEB");
-
-		private final List<String> types;
-
-		EndpointExposure(List<String> types) {
-			this.types = types;
-		}
-
-		static EndpointExposure parse(Object exposureAttribute) {
-			List<AnnotationValue> values = asAnnotationValues(exposureAttribute);
-			if (values.isEmpty()) {
-				return new EndpointExposure(ALL);
-			}
-			return new EndpointExposure(
-					values.stream().map(EndpointExposure::getValueAttribute)
-							.collect(Collectors.toList()));
-		}
-
-		@SuppressWarnings("unchecked")
-		private static List<AnnotationValue> asAnnotationValues(Object typesAttribute) {
-			if (!(typesAttribute instanceof List)) {
-				return Collections.emptyList();
-			}
-			return (List<AnnotationValue>) typesAttribute;
-		}
-
-		private static String getValueAttribute(AnnotationValue value) {
-			return ((VariableElement) value.getValue()).getSimpleName().toString();
-		}
-
-		public boolean hasJmx() {
-			return this.types.contains("JMX");
-		}
-
-		public boolean hasWeb() {
-			return this.types.contains("WEB");
-		}
-
 	}
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -105,7 +105,7 @@ public class SpringBootContextLoader extends AbstractContextLoader {
 		application.setMainApplicationClass(config.getTestClass());
 		application.addPrimarySources(Arrays.asList(configClasses));
 		application.getSources().addAll(Arrays.asList(configLocations));
-		ConfigurableEnvironment environment = new StandardEnvironment();
+		ConfigurableEnvironment environment = getEnvironment();
 		if (!ObjectUtils.isEmpty(config.getActiveProfiles())) {
 			setActiveProfiles(environment, config.getActiveProfiles());
 		}
@@ -148,6 +148,15 @@ public class SpringBootContextLoader extends AbstractContextLoader {
 		return new SpringApplication();
 	}
 
+	/**
+	 * Builds a new {@link ConfigurableEnvironment} instance. You can override this method
+	 * to return something other than {@link StandardEnvironment} if necessary.
+	 * @return a {@link ConfigurableEnvironment} instance
+	 */
+	protected ConfigurableEnvironment getEnvironment() {
+		return new StandardEnvironment();
+	}
+
 	private void setActiveProfiles(ConfigurableEnvironment environment,
 			String[] profiles) {
 		TestPropertyValues
@@ -183,7 +192,19 @@ public class SpringBootContextLoader extends AbstractContextLoader {
 				TestPropertySourceUtils.convertInlinedPropertiesToMap(array));
 	}
 
-	private List<ApplicationContextInitializer<?>> getInitializers(
+	/**
+	 * Return the {@link ApplicationContextInitializer initializers} that will be applied
+	 * to the context. By default this method will adapt {@link ContextCustomizer context
+	 * customizers}, add {@link SpringApplication#getInitializers() application
+	 * initializers} and add
+	 * {@link MergedContextConfiguration#getContextInitializerClasses() initializers
+	 * specified on the test}.
+	 * @param config the source context configuration
+	 * @param application the application instance
+	 * @return the initializers to apply
+	 * @since 2.0.0
+	 */
+	protected List<ApplicationContextInitializer<?>> getInitializers(
 			MergedContextConfiguration config, SpringApplication application) {
 		List<ApplicationContextInitializer<?>> initializers = new ArrayList<>();
 		for (ContextCustomizer contextCustomizer : config.getContextCustomizers()) {
@@ -229,7 +250,7 @@ public class SpringBootContextLoader extends AbstractContextLoader {
 	/**
 	 * Detect the default configuration classes for the supplied test class. By default
 	 * simply delegates to
-	 * {@link AnnotationConfigContextLoaderUtils#detectDefaultConfigurationClasses} .
+	 * {@link AnnotationConfigContextLoaderUtils#detectDefaultConfigurationClasses}.
 	 * @param declaringClass the test class that declared {@code @ContextConfiguration}
 	 * @return an array of default configuration classes, potentially empty but never
 	 * {@code null}

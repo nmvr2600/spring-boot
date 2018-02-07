@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.fail;
 
 /**
- * Tests for {@link DataSourceInitializer}.
+ * Tests for {@link DataSourceInitializerInvoker}.
  *
  * @author Dave Syer
  * @author Stephane Nicoll
@@ -60,8 +60,7 @@ public class DataSourceInitializerInvokerTests {
 	private ApplicationContextRunner contextRunner = new ApplicationContextRunner()
 			.withConfiguration(AutoConfigurations.of(DataSourceAutoConfiguration.class))
 			.withPropertyValues("spring.datasource.initialization-mode=never",
-					"spring.datasource.url:jdbc:hsqldb:mem:init-"
-							+ UUID.randomUUID().toString());
+					"spring.datasource.url:jdbc:hsqldb:mem:init-" + UUID.randomUUID());
 
 	@Test
 	public void dataSourceInitialized() {
@@ -111,8 +110,7 @@ public class DataSourceInitializerInvokerTests {
 	@Test
 	public void dataSourceInitializedWithMultipleScripts() {
 		this.contextRunner
-				.withPropertyValues(
-						"spring.datasource.initialization-mode:always",
+				.withPropertyValues("spring.datasource.initialization-mode:always",
 						"spring.datasource.schema:" + getRelativeLocationFor("schema.sql")
 								+ "," + getRelativeLocationFor("another.sql"),
 						"spring.datasource.data:" + getRelativeLocationFor("data.sql"))
@@ -130,12 +128,13 @@ public class DataSourceInitializerInvokerTests {
 
 	@Test
 	public void dataSourceInitializedWithExplicitSqlScriptEncoding() {
-		this.contextRunner.withPropertyValues(
-				"spring.datasource.initialization-mode:always",
-				"spring.datasource.sqlScriptEncoding:UTF-8",
-				"spring.datasource.schema:"
-						+ getRelativeLocationFor("encoding-schema.sql"),
-				"spring.datasource.data:" + getRelativeLocationFor("encoding-data.sql"))
+		this.contextRunner
+				.withPropertyValues("spring.datasource.initialization-mode:always",
+						"spring.datasource.sqlScriptEncoding:UTF-8",
+						"spring.datasource.schema:"
+								+ getRelativeLocationFor("encoding-schema.sql"),
+						"spring.datasource.data:"
+								+ getRelativeLocationFor("encoding-data.sql"))
 				.run((context) -> {
 					DataSource dataSource = context.getBean(DataSource.class);
 					assertThat(dataSource).isInstanceOf(HikariDataSource.class);
@@ -266,8 +265,7 @@ public class DataSourceInitializerInvokerTests {
 	@Test
 	public void dataSourceInitializedWithInvalidDataResource() {
 		this.contextRunner
-				.withPropertyValues(
-						"spring.datasource.initialization-mode:always",
+				.withPropertyValues("spring.datasource.initialization-mode:always",
 						"spring.datasource.schema:"
 								+ getRelativeLocationFor("schema.sql"),
 						"spring.datasource.data:classpath:does/not/exist.sql")

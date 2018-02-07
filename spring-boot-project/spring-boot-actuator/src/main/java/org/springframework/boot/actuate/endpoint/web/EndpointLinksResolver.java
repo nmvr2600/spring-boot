@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,8 +20,6 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import org.springframework.boot.actuate.endpoint.EndpointInfo;
-
 /**
  * A resolver for {@link Link links} to web endpoints.
  *
@@ -33,19 +31,18 @@ public class EndpointLinksResolver {
 	/**
 	 * Resolves links to the operations of the given {code webEndpoints} based on a
 	 * request with the given {@code requestUrl}.
-	 * @param webEndpoints the web endpoints
+	 * @param endpoints the source endpoints
 	 * @param requestUrl the url of the request for the endpoint links
 	 * @return the links
 	 */
-	public Map<String, Link> resolveLinks(
-			Collection<EndpointInfo<WebEndpointOperation>> webEndpoints,
+	public Map<String, Link> resolveLinks(Collection<ExposableWebEndpoint> endpoints,
 			String requestUrl) {
 		String normalizedUrl = normalizeRequestUrl(requestUrl);
 		Map<String, Link> links = new LinkedHashMap<>();
 		links.put("self", new Link(normalizedUrl));
-		for (EndpointInfo<WebEndpointOperation> endpoint : webEndpoints) {
-			for (WebEndpointOperation operation : endpoint.getOperations()) {
-				webEndpoints.stream().map(EndpointInfo::getId).forEach((id) -> links
+		for (ExposableWebEndpoint endpoint : endpoints) {
+			for (WebOperation operation : endpoint.getOperations()) {
+				endpoints.stream().map(ExposableWebEndpoint::getId).forEach((id) -> links
 						.put(operation.getId(), createLink(normalizedUrl, operation)));
 			}
 		}
@@ -59,7 +56,7 @@ public class EndpointLinksResolver {
 		return requestUrl;
 	}
 
-	private Link createLink(String requestUrl, WebEndpointOperation operation) {
+	private Link createLink(String requestUrl, WebOperation operation) {
 		String path = operation.getRequestPredicate().getPath();
 		return new Link(requestUrl + (path.startsWith("/") ? path : "/" + path));
 	}

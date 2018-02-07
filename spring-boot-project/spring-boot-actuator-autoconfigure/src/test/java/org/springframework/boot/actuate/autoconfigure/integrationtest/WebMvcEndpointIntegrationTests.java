@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import org.junit.Test;
 import org.springframework.boot.actuate.autoconfigure.audit.AuditAutoConfiguration;
 import org.springframework.boot.actuate.autoconfigure.beans.BeansEndpointAutoConfiguration;
 import org.springframework.boot.actuate.autoconfigure.endpoint.EndpointAutoConfiguration;
+import org.springframework.boot.actuate.autoconfigure.endpoint.web.WebEndpointAutoConfiguration;
 import org.springframework.boot.actuate.autoconfigure.web.server.ManagementContextAutoConfiguration;
 import org.springframework.boot.actuate.autoconfigure.web.servlet.ServletManagementContextAutoConfiguration;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
@@ -30,7 +31,7 @@ import org.springframework.boot.autoconfigure.data.rest.RepositoryRestMvcAutoCon
 import org.springframework.boot.autoconfigure.hateoas.HypermediaAutoConfiguration;
 import org.springframework.boot.autoconfigure.http.HttpMessageConvertersAutoConfiguration;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
-import org.springframework.boot.autoconfigure.security.SecurityAutoConfiguration;
+import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
 import org.springframework.boot.autoconfigure.web.servlet.DispatcherServletAutoConfiguration;
 import org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration;
 import org.springframework.boot.test.util.TestPropertyValues;
@@ -69,7 +70,7 @@ public class WebMvcEndpointIntegrationTests {
 		this.context = new AnnotationConfigWebApplicationContext();
 		this.context.register(SecureConfiguration.class);
 		MockMvc mockMvc = createSecureMockMvc();
-		mockMvc.perform(get("/application/beans").accept(MediaType.APPLICATION_JSON))
+		mockMvc.perform(get("/actuator/beans").accept(MediaType.APPLICATION_JSON))
 				.andExpect(status().isUnauthorized());
 	}
 
@@ -91,7 +92,7 @@ public class WebMvcEndpointIntegrationTests {
 		this.context = new AnnotationConfigWebApplicationContext();
 		this.context.register(SecureConfiguration.class);
 		TestPropertyValues.of("management.endpoints.web.base-path:/management",
-				"endpoints.default.web.enabled=true").applyTo(this.context);
+				"management.endpoints.web.expose=*").applyTo(this.context);
 		MockMvc mockMvc = createSecureMockMvc();
 		mockMvc.perform(get("/management/beans")).andExpect(status().isOk());
 	}
@@ -112,6 +113,7 @@ public class WebMvcEndpointIntegrationTests {
 
 	@ImportAutoConfiguration({ JacksonAutoConfiguration.class,
 			HttpMessageConvertersAutoConfiguration.class, EndpointAutoConfiguration.class,
+			WebEndpointAutoConfiguration.class,
 			ServletManagementContextAutoConfiguration.class, AuditAutoConfiguration.class,
 			PropertyPlaceholderAutoConfiguration.class, WebMvcAutoConfiguration.class,
 			ManagementContextAutoConfiguration.class, AuditAutoConfiguration.class,

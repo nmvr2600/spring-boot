@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,18 +16,19 @@
 
 package org.springframework.boot.actuate.endpoint.web;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import org.assertj.core.api.Condition;
 import org.junit.Test;
 
-import org.springframework.boot.actuate.endpoint.DefaultEnablement;
-import org.springframework.boot.actuate.endpoint.EndpointInfo;
 import org.springframework.boot.actuate.endpoint.OperationType;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 
 /**
  * Tests for {@link EndpointLinksResolver}.
@@ -41,45 +42,51 @@ public class EndpointLinksResolverTests {
 	@Test
 	public void linkResolutionWithTrailingSlashStripsSlashOnSelfLink() {
 		Map<String, Link> links = this.linksResolver.resolveLinks(Collections.emptyList(),
-				"https://api.example.com/application/");
+				"https://api.example.com/actuator/");
 		assertThat(links).hasSize(1);
 		assertThat(links).hasEntrySatisfying("self",
-				linkWithHref("https://api.example.com/application"));
+				linkWithHref("https://api.example.com/actuator"));
 	}
 
 	@Test
 	public void linkResolutionWithoutTrailingSlash() {
 		Map<String, Link> links = this.linksResolver.resolveLinks(Collections.emptyList(),
-				"https://api.example.com/application");
+				"https://api.example.com/actuator");
 		assertThat(links).hasSize(1);
 		assertThat(links).hasEntrySatisfying("self",
-				linkWithHref("https://api.example.com/application"));
+				linkWithHref("https://api.example.com/actuator"));
 	}
 
 	@Test
 	public void resolvedLinksContainsALinkForEachEndpointOperation() {
+		List<WebOperation> operations = new ArrayList<>();
+		operations.add(operationWithPath("/alpha", "alpha"));
+		operations.add(operationWithPath("/alpha/{name}", "alpha-name"));
+		ExposableWebEndpoint endpoint = mock(ExposableWebEndpoint.class);
+		given(endpoint.getId()).willReturn("alpha");
+		given(endpoint.isEnableByDefault()).willReturn(true);
+		given(endpoint.getOperations()).willReturn(operations);
+		String requestUrl = "https://api.example.com/actuator";
 		Map<String, Link> links = this.linksResolver
-				.resolveLinks(
-						Arrays.asList(new EndpointInfo<>("alpha",
-								DefaultEnablement.ENABLED,
-								Arrays.asList(operationWithPath("/alpha", "alpha"),
-										operationWithPath("/alpha/{name}",
-												"alpha-name")))),
-				"https://api.example.com/application");
+				.resolveLinks(Collections.singletonList(endpoint), requestUrl);
 		assertThat(links).hasSize(3);
 		assertThat(links).hasEntrySatisfying("self",
-				linkWithHref("https://api.example.com/application"));
+				linkWithHref("https://api.example.com/actuator"));
 		assertThat(links).hasEntrySatisfying("alpha",
-				linkWithHref("https://api.example.com/application/alpha"));
+				linkWithHref("https://api.example.com/actuator/alpha"));
 		assertThat(links).hasEntrySatisfying("alpha-name",
-				linkWithHref("https://api.example.com/application/alpha/{name}"));
+				linkWithHref("https://api.example.com/actuator/alpha/{name}"));
 	}
 
-	private WebEndpointOperation operationWithPath(String path, String id) {
-		return new WebEndpointOperation(OperationType.READ, null, false,
-				new OperationRequestPredicate(path, WebEndpointHttpMethod.GET,
-						Collections.emptyList(), Collections.emptyList()),
-				id);
+	private WebOperation operationWithPath(String path, String id) {
+		WebOperationRequestPredicate predicate = new WebOperationRequestPredicate(path,
+				WebEndpointHttpMethod.GET, Collections.emptyList(),
+				Collections.emptyList());
+		WebOperation operation = mock(WebOperation.class);
+		given(operation.getId()).willReturn(id);
+		given(operation.getType()).willReturn(OperationType.READ);
+		given(operation.getRequestPredicate()).willReturn(predicate);
+		return operation;
 	}
 
 	private Condition<Link> linkWithHref(String href) {

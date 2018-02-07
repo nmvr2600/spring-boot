@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,24 +16,40 @@
 
 package org.springframework.boot.actuate.endpoint.web.servlet;
 
+import java.io.IOException;
+import java.security.Principal;
 import java.util.Arrays;
+
+import javax.servlet.Filter;
+import javax.servlet.FilterChain;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletRequestWrapper;
+import javax.servlet.http.HttpServletResponse;
 
 import org.junit.Test;
 
-import org.springframework.boot.actuate.endpoint.web.AbstractWebEndpointIntegrationTests;
 import org.springframework.boot.actuate.endpoint.web.EndpointMediaTypes;
-import org.springframework.boot.actuate.endpoint.web.annotation.WebAnnotationEndpointDiscoverer;
+import org.springframework.boot.actuate.endpoint.web.annotation.AbstractWebEndpointIntegrationTests;
+import org.springframework.boot.actuate.endpoint.web.annotation.WebEndpointDiscoverer;
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
+import org.springframework.boot.autoconfigure.http.HttpMessageConvertersAutoConfiguration;
+import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
+import org.springframework.boot.autoconfigure.web.servlet.DispatcherServletAutoConfiguration;
+import org.springframework.boot.autoconfigure.web.servlet.ServletWebServerFactoryAutoConfiguration;
+import org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration;
+import org.springframework.boot.autoconfigure.web.servlet.error.ErrorMvcAutoConfiguration;
 import org.springframework.boot.endpoint.web.EndpointMapping;
 import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory;
 import org.springframework.boot.web.servlet.context.AnnotationConfigServletWebServerApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.servlet.DispatcherServlet;
-import org.springframework.web.servlet.config.annotation.EnableWebMvc;
+import org.springframework.web.filter.OncePerRequestFilter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -88,8 +104,16 @@ public class MvcWebEndpointIntegrationTests extends
 		return context.getWebServer().getPort();
 	}
 
+	@Override
+	protected Class<?> getSecuredPrincipalEndpointConfiguration() {
+		return SecuredPrincipalEndpointConfiguration.class;
+	}
+
 	@Configuration
-	@EnableWebMvc
+	@ImportAutoConfiguration({ JacksonAutoConfiguration.class,
+			HttpMessageConvertersAutoConfiguration.class,
+			ServletWebServerFactoryAutoConfiguration.class, WebMvcAutoConfiguration.class,
+			DispatcherServletAutoConfiguration.class, ErrorMvcAutoConfiguration.class })
 	static class WebMvcConfiguration {
 
 		@Bean
@@ -98,22 +122,53 @@ public class MvcWebEndpointIntegrationTests extends
 		}
 
 		@Bean
-		public DispatcherServlet dispatcherServlet() {
-			return new DispatcherServlet();
-		}
-
-		@Bean
 		public WebMvcEndpointHandlerMapping webEndpointHandlerMapping(
-				Environment environment,
-				WebAnnotationEndpointDiscoverer webEndpointDiscoverer,
+				Environment environment, WebEndpointDiscoverer endpointDiscoverer,
 				EndpointMediaTypes endpointMediaTypes) {
 			CorsConfiguration corsConfiguration = new CorsConfiguration();
 			corsConfiguration.setAllowedOrigins(Arrays.asList("http://example.com"));
 			corsConfiguration.setAllowedMethods(Arrays.asList("GET", "POST"));
 			return new WebMvcEndpointHandlerMapping(
 					new EndpointMapping(environment.getProperty("endpointPath")),
-					webEndpointDiscoverer.discoverEndpoints(), endpointMediaTypes,
+					endpointDiscoverer.getEndpoints(), endpointMediaTypes,
 					corsConfiguration);
+		}
+
+	}
+
+	@Configuration
+	@Import(PrincipalEndpointConfiguration.class)
+	static class SecuredPrincipalEndpointConfiguration {
+
+		@Bean
+		public Filter securityFilter() {
+			return new OncePerRequestFilter() {
+
+				@Override
+				protected void doFilterInternal(HttpServletRequest request,
+						HttpServletResponse response, FilterChain filterChain)
+								throws ServletException, IOException {
+					filterChain.doFilter(new HttpServletRequestWrapper(request) {
+
+						@Override
+						public Principal getUserPrincipal() {
+
+							return new Principal() {
+
+								@Override
+								public String getName() {
+									return "Alice";
+								}
+
+							};
+
+						}
+
+					}, response);
+				}
+
+			};
+
 		}
 
 	}

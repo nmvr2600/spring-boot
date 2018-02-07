@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 package org.springframework.boot.autoconfigure.jackson;
 
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
@@ -42,14 +42,14 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class JacksonProperties {
 
 	/**
-	 * Date format string (yyyy-MM-dd HH:mm:ss), or a fully-qualified date format class
-	 * name.
+	 * Date format string or a fully-qualified date format class name. For instance,
+	 * `yyyy-MM-dd HH:mm:ss`.
 	 */
 	private String dateFormat;
 
 	/**
-	 * Joda date time format string (yyyy-MM-dd HH:mm:ss). If not configured,
-	 * "date-format" will be used as a fallback if it is configured with a format string.
+	 * Joda date time format string. If not configured, "date-format" is used as a
+	 * fallback if it is configured with a format string.
 	 */
 	private String jodaDateTimeFormat;
 
@@ -63,27 +63,31 @@ public class JacksonProperties {
 	/**
 	 * Jackson on/off features that affect the way Java objects are serialized.
 	 */
-	private Map<SerializationFeature, Boolean> serialization = new HashMap<>();
+	private Map<SerializationFeature, Boolean> serialization = new EnumMap<>(
+			SerializationFeature.class);
 
 	/**
 	 * Jackson on/off features that affect the way Java objects are deserialized.
 	 */
-	private Map<DeserializationFeature, Boolean> deserialization = new HashMap<>();
+	private Map<DeserializationFeature, Boolean> deserialization = new EnumMap<>(
+			DeserializationFeature.class);
 
 	/**
 	 * Jackson general purpose on/off features.
 	 */
-	private Map<MapperFeature, Boolean> mapper = new HashMap<>();
+	private Map<MapperFeature, Boolean> mapper = new EnumMap<>(MapperFeature.class);
 
 	/**
 	 * Jackson on/off features for parsers.
 	 */
-	private Map<JsonParser.Feature, Boolean> parser = new HashMap<>();
+	private Map<JsonParser.Feature, Boolean> parser = new EnumMap<>(
+			JsonParser.Feature.class);
 
 	/**
 	 * Jackson on/off features for generators.
 	 */
-	private Map<JsonGenerator.Feature, Boolean> generator = new HashMap<>();
+	private Map<JsonGenerator.Feature, Boolean> generator = new EnumMap<>(
+			JsonGenerator.Feature.class);
 
 	/**
 	 * Controls the inclusion of properties during serialization. Configured with one of
@@ -92,8 +96,8 @@ public class JacksonProperties {
 	private JsonInclude.Include defaultPropertyInclusion;
 
 	/**
-	 * Time zone used when formatting dates. Configured using any recognized time zone
-	 * identifier, for example "America/Los_Angeles" or "GMT+10".
+	 * Time zone used when formatting dates. For instance, "America/Los_Angeles" or
+	 * "GMT+10".
 	 */
 	private TimeZone timeZone = null;
 

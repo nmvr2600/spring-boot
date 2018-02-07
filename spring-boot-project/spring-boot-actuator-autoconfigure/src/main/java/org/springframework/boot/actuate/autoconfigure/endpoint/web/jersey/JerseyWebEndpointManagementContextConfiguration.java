@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,18 +16,18 @@
 
 package org.springframework.boot.actuate.autoconfigure.endpoint.web.jersey;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 
 import org.glassfish.jersey.server.ResourceConfig;
 
-import org.springframework.boot.actuate.autoconfigure.endpoint.EndpointProvider;
-import org.springframework.boot.actuate.autoconfigure.endpoint.web.DefaultEndpointPathProvider;
-import org.springframework.boot.actuate.autoconfigure.endpoint.web.EndpointPathProvider;
 import org.springframework.boot.actuate.autoconfigure.endpoint.web.WebEndpointProperties;
 import org.springframework.boot.actuate.autoconfigure.web.ManagementContextConfiguration;
 import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
 import org.springframework.boot.actuate.endpoint.web.EndpointMediaTypes;
-import org.springframework.boot.actuate.endpoint.web.WebEndpointOperation;
+import org.springframework.boot.actuate.endpoint.web.ExposableWebEndpoint;
+import org.springframework.boot.actuate.endpoint.web.WebEndpointsSupplier;
 import org.springframework.boot.actuate.endpoint.web.jersey.JerseyEndpointResourceFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -44,32 +44,29 @@ import org.springframework.context.annotation.Configuration;
  *
  * @author Andy Wilkinson
  * @author Phillip Webb
- * @since 2.0.0
  */
 @Configuration
 @ConditionalOnWebApplication(type = Type.SERVLET)
 @ConditionalOnClass(ResourceConfig.class)
-@ConditionalOnBean(ResourceConfig.class)
+@ConditionalOnBean({ ResourceConfig.class, WebEndpointsSupplier.class })
 @ConditionalOnMissingBean(type = "org.springframework.web.servlet.DispatcherServlet")
 class JerseyWebEndpointManagementContextConfiguration {
 
 	@Bean
 	public ResourceConfigCustomizer webEndpointRegistrar(
-			EndpointProvider<WebEndpointOperation> provider,
+			WebEndpointsSupplier webEndpointsSupplier,
 			EndpointMediaTypes endpointMediaTypes,
 			WebEndpointProperties webEndpointProperties) {
-		return (resourceConfig) -> resourceConfig.registerResources(
-				new HashSet<>(new JerseyEndpointResourceFactory().createEndpointResources(
-						new EndpointMapping(webEndpointProperties.getBasePath()),
-						provider.getEndpoints(), endpointMediaTypes)));
-	}
-
-	@Bean
-	@ConditionalOnMissingBean
-	public EndpointPathProvider endpointPathProvider(
-			EndpointProvider<WebEndpointOperation> provider,
-			WebEndpointProperties webEndpointProperties) {
-		return new DefaultEndpointPathProvider(provider, webEndpointProperties);
+		return (resourceConfig) -> {
+			JerseyEndpointResourceFactory resourceFactory = new JerseyEndpointResourceFactory();
+			String basePath = webEndpointProperties.getBasePath();
+			EndpointMapping endpointMapping = new EndpointMapping(basePath);
+			Collection<ExposableWebEndpoint> endpoints = Collections
+					.unmodifiableCollection(webEndpointsSupplier.getEndpoints());
+			resourceConfig.registerResources(
+					new HashSet<>(resourceFactory.createEndpointResources(endpointMapping,
+							endpoints, endpointMediaTypes)));
+		};
 	}
 
 }

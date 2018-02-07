@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
-import org.springframework.boot.web.reactive.context.ReactiveWebServerApplicationContext;
+import org.springframework.boot.web.reactive.context.AnnotationConfigReactiveWebServerApplicationContext;
 import org.springframework.boot.web.reactive.server.ConfigurableReactiveWebServerFactory;
 import org.springframework.boot.web.reactive.server.ReactiveWebServerFactory;
 import org.springframework.boot.web.server.WebServerFactoryCustomizer;
@@ -41,27 +41,29 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 public class ReactiveWebServerAutoConfigurationTests {
 
-	private ReactiveWebServerApplicationContext context;
+	private AnnotationConfigReactiveWebServerApplicationContext context;
 
 	@Rule
 	public ExpectedException thrown = ExpectedException.none();
 
 	@Test
 	public void createFromConfigClass() {
-		this.context = new ReactiveWebServerApplicationContext(BaseConfiguration.class);
+		this.context = new AnnotationConfigReactiveWebServerApplicationContext(
+				BaseConfiguration.class);
 		assertThat(this.context.getBeansOfType(ReactiveWebServerFactory.class))
 				.hasSize(1);
 		assertThat(this.context.getBeansOfType(WebServerFactoryCustomizer.class))
 				.hasSize(1);
-		assertThat(this.context.getBeansOfType(DefaultReactiveWebServerCustomizer.class))
-				.hasSize(1);
+		assertThat(this.context
+				.getBeansOfType(DefaultReactiveWebServerFactoryCustomizer.class))
+						.hasSize(1);
 	}
 
 	@Test
 	public void missingHttpHandler() {
 		this.thrown.expect(ApplicationContextException.class);
 		this.thrown.expectMessage(Matchers.containsString("missing HttpHandler bean"));
-		this.context = new ReactiveWebServerApplicationContext(
+		this.context = new AnnotationConfigReactiveWebServerApplicationContext(
 				MissingHttpHandlerConfiguration.class);
 	}
 
@@ -70,14 +72,14 @@ public class ReactiveWebServerAutoConfigurationTests {
 		this.thrown.expect(ApplicationContextException.class);
 		this.thrown.expectMessage(Matchers.containsString(
 				"multiple HttpHandler beans : httpHandler,additionalHttpHandler"));
-		this.context = new ReactiveWebServerApplicationContext(BaseConfiguration.class,
-				TooManyHttpHandlers.class);
+		this.context = new AnnotationConfigReactiveWebServerApplicationContext(
+				BaseConfiguration.class, TooManyHttpHandlers.class);
 	}
 
 	@Test
 	public void customizeReactiveWebServer() {
-		this.context = new ReactiveWebServerApplicationContext(BaseConfiguration.class,
-				ReactiveWebServerCustomization.class);
+		this.context = new AnnotationConfigReactiveWebServerApplicationContext(
+				BaseConfiguration.class, ReactiveWebServerCustomization.class);
 		MockReactiveWebServerFactory factory = this.context
 				.getBean(MockReactiveWebServerFactory.class);
 		assertThat(factory.getPort()).isEqualTo(9000);
@@ -117,7 +119,7 @@ public class ReactiveWebServerAutoConfigurationTests {
 
 		@Bean
 		public WebServerFactoryCustomizer<ConfigurableReactiveWebServerFactory> reactiveWebServerCustomizer() {
-			return (server) -> server.setPort(9000);
+			return (factory) -> factory.setPort(9000);
 		}
 
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,15 @@
 
 package org.springframework.boot.autoconfigure.amqp;
 
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.amqp.core.AcknowledgeMode;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory.CacheMode;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.convert.DefaultDurationUnit;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
@@ -51,12 +54,12 @@ public class RabbitProperties {
 	/**
 	 * Login user to authenticate to the broker.
 	 */
-	private String username;
+	private String username = "guest";
 
 	/**
 	 * Login to authenticate against the broker.
 	 */
-	private String password;
+	private String password = "guest";
 
 	/**
 	 * SSL configuration.
@@ -74,24 +77,26 @@ public class RabbitProperties {
 	private String addresses;
 
 	/**
-	 * Requested heartbeat timeout, in seconds; zero for none.
+	 * Requested heartbeat timeout; zero for none. If a duration suffix is not specified,
+	 * seconds will be used.
 	 */
-	private Integer requestedHeartbeat;
+	@DefaultDurationUnit(ChronoUnit.SECONDS)
+	private Duration requestedHeartbeat;
 
 	/**
-	 * Enable publisher confirms.
+	 * Whether to enable publisher confirms.
 	 */
 	private boolean publisherConfirms;
 
 	/**
-	 * Enable publisher returns.
+	 * Whether to enable publisher returns.
 	 */
 	private boolean publisherReturns;
 
 	/**
-	 * Connection timeout, in milliseconds; zero for infinite.
+	 * Connection timeout. Set it to zero to wait forever.
 	 */
-	private Integer connectionTimeout;
+	private Duration connectionTimeout;
 
 	/**
 	 * Cache configuration.
@@ -258,11 +263,11 @@ public class RabbitProperties {
 		this.virtualHost = ("".equals(virtualHost) ? "/" : virtualHost);
 	}
 
-	public Integer getRequestedHeartbeat() {
+	public Duration getRequestedHeartbeat() {
 		return this.requestedHeartbeat;
 	}
 
-	public void setRequestedHeartbeat(Integer requestedHeartbeat) {
+	public void setRequestedHeartbeat(Duration requestedHeartbeat) {
 		this.requestedHeartbeat = requestedHeartbeat;
 	}
 
@@ -282,11 +287,11 @@ public class RabbitProperties {
 		this.publisherReturns = publisherReturns;
 	}
 
-	public Integer getConnectionTimeout() {
+	public Duration getConnectionTimeout() {
 		return this.connectionTimeout;
 	}
 
-	public void setConnectionTimeout(Integer connectionTimeout) {
+	public void setConnectionTimeout(Duration connectionTimeout) {
 		this.connectionTimeout = connectionTimeout;
 	}
 
@@ -305,7 +310,7 @@ public class RabbitProperties {
 	public static class Ssl {
 
 		/**
-		 * Enable SSL support.
+		 * Whether to enable SSL support.
 		 */
 		private boolean enabled;
 
@@ -340,8 +345,7 @@ public class RabbitProperties {
 		private String trustStorePassword;
 
 		/**
-		 * SSL algorithm to use (e.g. TLSv1.1). Default is set automatically by the rabbit
-		 * client library.
+		 * SSL algorithm to use. By default, configured by the Rabbit client library.
 		 */
 		private String algorithm;
 
@@ -533,10 +537,10 @@ public class RabbitProperties {
 
 	}
 
-	public static abstract class AmqpContainer {
+	public abstract static class AmqpContainer {
 
 		/**
-		 * Start the container automatically on startup.
+		 * Whether to start the container automatically on startup.
 		 */
 		private boolean autoStartup = true;
 
@@ -552,14 +556,14 @@ public class RabbitProperties {
 		private Integer prefetch;
 
 		/**
-		 * Whether rejected deliveries are requeued by default; default true.
+		 * Whether rejected deliveries are re-queued by default. Defaults to true.
 		 */
 		private Boolean defaultRequeueRejected;
 
 		/**
-		 * How often idle container events should be published in milliseconds.
+		 * How often idle container events should be published.
 		 */
-		private Long idleEventInterval;
+		private Duration idleEventInterval;
 
 		/**
 		 * Optional properties for a retry interceptor.
@@ -598,11 +602,11 @@ public class RabbitProperties {
 			this.defaultRequeueRejected = defaultRequeueRejected;
 		}
 
-		public Long getIdleEventInterval() {
+		public Duration getIdleEventInterval() {
 			return this.idleEventInterval;
 		}
 
-		public void setIdleEventInterval(Long idleEventInterval) {
+		public void setIdleEventInterval(Duration idleEventInterval) {
 			this.idleEventInterval = idleEventInterval;
 		}
 
@@ -628,8 +632,9 @@ public class RabbitProperties {
 		private Integer maxConcurrency;
 
 		/**
-		 * Number of messages to be processed in a transaction; number of messages between
-		 * acks. For best results it should be less than or equal to the prefetch count.
+		 * Number of messages to be processed in a transaction. That is, the number of
+		 * messages between acks. For best results, it should be less than or equal to the
+		 * prefetch count.
 		 */
 		private Integer transactionSize;
 
@@ -684,8 +689,7 @@ public class RabbitProperties {
 		private final Retry retry = new Retry();
 
 		/**
-		 * Enable mandatory messages. If a mandatory message cannot be routed to a queue
-		 * by the server, it will return an unroutable message with a Return method.
+		 * Whether to enable mandatory messages.
 		 */
 		private Boolean mandatory;
 
@@ -698,6 +702,16 @@ public class RabbitProperties {
 		 * Timeout for sendAndReceive() operations.
 		 */
 		private Long replyTimeout;
+
+		/**
+		 * Name of the default exchange to use for send operations.
+		 */
+		private String exchange = "";
+
+		/**
+		 * Value of a default routing key to use for send operations.
+		 */
+		private String routingKey = "";
 
 		public Retry getRetry() {
 			return this.retry;
@@ -727,12 +741,28 @@ public class RabbitProperties {
 			this.replyTimeout = replyTimeout;
 		}
 
+		public String getExchange() {
+			return this.exchange;
+		}
+
+		public void setExchange(String exchange) {
+			this.exchange = exchange;
+		}
+
+		public String getRoutingKey() {
+			return this.routingKey;
+		}
+
+		public void setRoutingKey(String routingKey) {
+			this.routingKey = routingKey;
+		}
+
 	}
 
 	public static class Retry {
 
 		/**
-		 * Whether or not publishing retries are enabled.
+		 * Whether to enable retries in the RabbitTemplate.
 		 */
 		private boolean enabled;
 
@@ -747,7 +777,7 @@ public class RabbitProperties {
 		private long initialInterval = 1000L;
 
 		/**
-		 * A multiplier to apply to the previous retry interval.
+		 * Multiplier to apply to the previous retry interval.
 		 */
 		private double multiplier = 1.0;
 
@@ -801,7 +831,7 @@ public class RabbitProperties {
 	public static class ListenerRetry extends Retry {
 
 		/**
-		 * Whether or not retries are stateless or stateful.
+		 * Whether retries are stateless or stateful.
 		 */
 		private boolean stateless = true;
 
@@ -861,7 +891,7 @@ public class RabbitProperties {
 		}
 
 		private String parseVirtualHost(String input) {
-			int hostIndex = input.indexOf("/");
+			int hostIndex = input.indexOf('/');
 			if (hostIndex >= 0) {
 				this.virtualHost = input.substring(hostIndex + 1);
 				if (this.virtualHost.isEmpty()) {

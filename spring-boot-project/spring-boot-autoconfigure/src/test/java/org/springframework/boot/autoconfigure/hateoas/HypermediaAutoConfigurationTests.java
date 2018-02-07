@@ -62,7 +62,7 @@ public class HypermediaAutoConfigurationTests {
 	}
 
 	@Test
-	public void linkDiscoverersCreated() throws Exception {
+	public void linkDiscoverersCreated() {
 		this.context = new AnnotationConfigWebApplicationContext();
 		this.context.setServletContext(new MockServletContext());
 		this.context.register(BaseConfig.class);
@@ -74,7 +74,7 @@ public class HypermediaAutoConfigurationTests {
 	}
 
 	@Test
-	public void entityLinksCreated() throws Exception {
+	public void entityLinksCreated() {
 		this.context = new AnnotationConfigWebApplicationContext();
 		this.context.setServletContext(new MockServletContext());
 		this.context.register(BaseConfig.class);
@@ -140,7 +140,7 @@ public class HypermediaAutoConfigurationTests {
 		for (HttpMessageConverter<?> converter : handlerAdapter.getMessageConverters()) {
 			if (converter instanceof TypeConstrainedMappingJackson2HttpMessageConverter) {
 				assertThat(converter.getSupportedMediaTypes())
-						.containsExactly(MediaTypes.HAL_JSON);
+						.containsExactly(MediaTypes.HAL_JSON, MediaTypes.HAL_JSON_UTF8);
 			}
 		}
 	}

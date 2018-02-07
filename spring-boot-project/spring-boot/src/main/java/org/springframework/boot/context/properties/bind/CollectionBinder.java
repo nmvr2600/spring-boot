@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,14 +40,14 @@ class CollectionBinder extends IndexedElementsBinder<Collection<Object>> {
 			AggregateElementBinder elementBinder) {
 		Class<?> collectionType = (target.getValue() == null ? target.getType().resolve()
 				: List.class);
-		IndexedCollectionSupplier collection = new IndexedCollectionSupplier(
-				() -> CollectionFactory.createCollection(collectionType, 0));
-		ResolvableType elementType = target.getType().asCollection().getGeneric();
-		ResolvableType aggregateType = ResolvableType.forClassWithGenerics(List.class,
+		ResolvableType aggregateType = forClassWithGenerics(List.class,
 				target.getType().asCollection().getGenerics());
-		bindIndexed(name, target, elementBinder, collection, aggregateType, elementType);
-		if (collection.wasSupplied()) {
-			return collection.get();
+		ResolvableType elementType = target.getType().asCollection().getGeneric();
+		IndexedCollectionSupplier result = new IndexedCollectionSupplier(
+				() -> CollectionFactory.createCollection(collectionType, 0));
+		bindIndexed(name, target, elementBinder, aggregateType, elementType, result);
+		if (result.wasSupplied()) {
+			return result.get();
 		}
 		return null;
 	}

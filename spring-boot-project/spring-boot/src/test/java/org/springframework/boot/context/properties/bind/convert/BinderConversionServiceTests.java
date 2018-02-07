@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,8 @@ package org.springframework.boot.context.properties.bind.convert;
 
 import java.io.InputStream;
 import java.net.InetAddress;
+import java.time.Duration;
+import java.util.List;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -26,6 +28,7 @@ import org.springframework.core.convert.ConversionFailedException;
 import org.springframework.core.convert.ConversionService;
 import org.springframework.core.convert.TypeDescriptor;
 import org.springframework.core.io.Resource;
+import org.springframework.util.ReflectionUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
@@ -50,8 +53,7 @@ public class BinderConversionServiceTests {
 	}
 
 	@Test
-	public void createConversionServiceShouldAcceptNullConversionService()
-			throws Exception {
+	public void createConversionServiceShouldAcceptNullConversionService() {
 		BinderConversionService service = new BinderConversionService(null);
 		assertThat(service.canConvert(String.class, TestEnum.class)).isTrue();
 		assertThat(service.canConvert(TypeDescriptor.valueOf(String.class),
@@ -62,7 +64,7 @@ public class BinderConversionServiceTests {
 	}
 
 	@Test
-	public void canConvertShouldDelegateToConversionService() throws Exception {
+	public void canConvertShouldDelegateToConversionService() {
 		Class<String> from = String.class;
 		Class<InputStream> to = InputStream.class;
 		given(this.delegate.canConvert(from, to)).willReturn(true);
@@ -71,8 +73,7 @@ public class BinderConversionServiceTests {
 	}
 
 	@Test
-	public void canConvertTypeDescriptorShouldDelegateToConversionService()
-			throws Exception {
+	public void canConvertTypeDescriptorShouldDelegateToConversionService() {
 		TypeDescriptor from = TypeDescriptor.valueOf(String.class);
 		TypeDescriptor to = TypeDescriptor.valueOf(InputStream.class);
 		given(this.delegate.canConvert(from, to)).willReturn(true);
@@ -81,7 +82,7 @@ public class BinderConversionServiceTests {
 	}
 
 	@Test
-	public void convertShouldDelegateToConversionService() throws Exception {
+	public void convertShouldDelegateToConversionService() {
 		String from = "foo";
 		InputStream to = mock(InputStream.class);
 		given(this.delegate.convert(from, InputStream.class)).willReturn(to);
@@ -90,7 +91,7 @@ public class BinderConversionServiceTests {
 	}
 
 	@Test
-	public void convertTargetTypeShouldDelegateToConversionService() throws Exception {
+	public void convertTargetTypeShouldDelegateToConversionService() {
 		String from = "foo";
 		InputStream to = mock(InputStream.class);
 		TypeDescriptor fromType = TypeDescriptor.valueOf(String.class);
@@ -101,7 +102,7 @@ public class BinderConversionServiceTests {
 	}
 
 	@Test
-	public void convertShouldSwallowDelegateConversionFailedException() throws Exception {
+	public void convertShouldSwallowDelegateConversionFailedException() {
 		given(this.delegate.convert("one", TestEnum.class))
 				.willThrow(new ConversionFailedException(null, null, null, null));
 		assertThat(this.service.convert("one", TestEnum.class)).isEqualTo(TestEnum.ONE);
@@ -109,7 +110,7 @@ public class BinderConversionServiceTests {
 	}
 
 	@Test
-	public void conversionServiceShouldSupportEnums() throws Exception {
+	public void conversionServiceShouldSupportEnums() {
 		this.service = new BinderConversionService(null);
 		assertThat(this.service.canConvert(String.class, TestEnum.class)).isTrue();
 		assertThat(this.service.convert("one", TestEnum.class)).isEqualTo(TestEnum.ONE);
@@ -117,7 +118,7 @@ public class BinderConversionServiceTests {
 	}
 
 	@Test
-	public void conversionServiceShouldSupportStringToCharArray() throws Exception {
+	public void conversionServiceShouldSupportStringToCharArray() {
 		this.service = new BinderConversionService(null);
 		assertThat(this.service.canConvert(String.class, char[].class)).isTrue();
 		assertThat(this.service.convert("test", char[].class)).containsExactly('t', 'e',
@@ -125,19 +126,19 @@ public class BinderConversionServiceTests {
 	}
 
 	@Test
-	public void conversionServiceShouldSupportStringToInetAddress() throws Exception {
+	public void conversionServiceShouldSupportStringToInetAddress() {
 		this.service = new BinderConversionService(null);
 		assertThat(this.service.canConvert(String.class, InetAddress.class)).isTrue();
 	}
 
 	@Test
-	public void conversionServiceShouldSupportInetAddressToString() throws Exception {
+	public void conversionServiceShouldSupportInetAddressToString() {
 		this.service = new BinderConversionService(null);
 		assertThat(this.service.canConvert(InetAddress.class, String.class)).isTrue();
 	}
 
 	@Test
-	public void conversionServiceShouldSupportStringToResource() throws Exception {
+	public void conversionServiceShouldSupportStringToResource() {
 		this.service = new BinderConversionService(null);
 		Resource resource = this.service.convert(
 				"org/springframework/boot/context/properties/bind/convert/resource.txt",
@@ -146,11 +147,55 @@ public class BinderConversionServiceTests {
 	}
 
 	@Test
-	public void conversionServiceShouldSupportStringToClass() throws Exception {
+	public void conversionServiceShouldSupportStringToClass() {
 		this.service = new BinderConversionService(null);
 		Class<?> converted = this.service.convert(InputStream.class.getName(),
 				Class.class);
 		assertThat(converted).isEqualTo(InputStream.class);
+	}
+
+	@Test
+	public void conversionServiceShouldSupportStringToDuration() {
+		this.service = new BinderConversionService(null);
+		Duration converted = this.service.convert("10s", Duration.class);
+		assertThat(converted).isEqualTo(Duration.ofSeconds(10));
+	}
+
+	@Test
+	public void conversionServiceShouldSupportIntegerToDuration() {
+		this.service = new BinderConversionService(null);
+		Duration converted = this.service.convert(10, Duration.class);
+		assertThat(converted).isEqualTo(Duration.ofMillis(10));
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void conversionServiceShouldSupportBarDelimitedStrings() {
+		this.service = new BinderConversionService(null);
+		List<TestEnum> converted = (List<TestEnum>) this.service.convert("ONE|ONE|TWO",
+				TypeDescriptor.valueOf(String.class), TypeDescriptor.nested(
+						ReflectionUtils.findField(DelimitedValues.class, "bar"), 0));
+		assertThat(converted).containsExactly(TestEnum.ONE, TestEnum.ONE, TestEnum.TWO);
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void conversionServiceShouldSupportNoneDelimitedStrings() {
+		this.service = new BinderConversionService(null);
+		List<String> converted = (List<String>) this.service.convert("a,b,c",
+				TypeDescriptor.valueOf(String.class), TypeDescriptor.nested(
+						ReflectionUtils.findField(DelimitedValues.class, "none"), 0));
+		assertThat(converted).containsExactly("a,b,c");
+	}
+
+	static class DelimitedValues {
+
+		@Delimiter("|")
+		List<TestEnum> bar;
+
+		@Delimiter(Delimiter.NONE)
+		List<String> none;
+
 	}
 
 	enum TestEnum {

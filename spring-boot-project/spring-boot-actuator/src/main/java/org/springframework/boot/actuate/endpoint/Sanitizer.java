@@ -21,8 +21,8 @@ import java.util.regex.Pattern;
 import org.springframework.util.Assert;
 
 /**
- * Strategy that be be used by endpoint implementations to sanitize potentially sensitive
- * keys.
+ * Strategy that should be used by endpoint implementations to sanitize potentially
+ * sensitive keys.
  *
  * @author Christian Dupuis
  * @author Toshiaki Maki
@@ -81,9 +81,12 @@ public class Sanitizer {
 	 * @return the potentially sanitized value
 	 */
 	public Object sanitize(String key, Object value) {
+		if (value == null) {
+			return null;
+		}
 		for (Pattern pattern : this.keysToSanitize) {
 			if (pattern.matcher(key).matches()) {
-				return (value == null ? null : "******");
+				return "******";
 			}
 		}
 		return value;

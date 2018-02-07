@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -109,7 +109,7 @@ public class ConfigurationPropertiesBindingPostProcessorTests {
 	}
 
 	@Test
-	public void bindWithValueDefault() throws Exception {
+	public void bindWithValueDefault() {
 		this.context = new AnnotationConfigApplicationContext();
 		TestPropertySourceUtils.addInlinedPropertiesToEnvironment(this.context,
 				"default.value=foo");
@@ -120,7 +120,7 @@ public class ConfigurationPropertiesBindingPostProcessorTests {
 	}
 
 	@Test
-	public void binderShouldNotInitializeFactoryBeans() throws Exception {
+	public void binderShouldNotInitializeFactoryBeans() {
 		ConfigurationPropertiesWithFactoryBean.factoryBeanInit = false;
 		this.context = new AnnotationConfigApplicationContext() {
 			@Override
@@ -153,7 +153,7 @@ public class ConfigurationPropertiesBindingPostProcessorTests {
 	}
 
 	@Test
-	public void multiplePropertySourcesPlaceholderConfigurer() throws Exception {
+	public void multiplePropertySourcesPlaceholderConfigurer() {
 		this.context = new AnnotationConfigApplicationContext();
 		this.context.register(MultiplePropertySourcesPlaceholderConfigurer.class);
 		this.context.refresh();
@@ -162,8 +162,7 @@ public class ConfigurationPropertiesBindingPostProcessorTests {
 	}
 
 	@Test
-	public void overridingPropertiesWithPlaceholderResolutionInEnvShouldOverride()
-			throws Exception {
+	public void overridingPropertiesWithPlaceholderResolutionInEnvShouldOverride() {
 		this.context = new AnnotationConfigApplicationContext();
 		ConfigurableEnvironment env = this.context.getEnvironment();
 		MutablePropertySources propertySources = env.getPropertySources();
@@ -180,8 +179,7 @@ public class ConfigurationPropertiesBindingPostProcessorTests {
 	}
 
 	@Test
-	public void unboundElementsFromSystemEnvironmentShouldNotThrowException()
-			throws Exception {
+	public void unboundElementsFromSystemEnvironmentShouldNotThrowException() {
 		this.context = new AnnotationConfigApplicationContext();
 		ConfigurableEnvironment env = this.context.getEnvironment();
 		MutablePropertySources propertySources = env.getPropertySources();
@@ -197,7 +195,7 @@ public class ConfigurationPropertiesBindingPostProcessorTests {
 	}
 
 	@Test
-	public void rebindableConfigurationProperties() throws Exception {
+	public void rebindableConfigurationProperties() {
 		// gh-9160
 		this.context = new AnnotationConfigApplicationContext();
 		MutablePropertySources sources = this.context.getEnvironment()
@@ -218,8 +216,7 @@ public class ConfigurationPropertiesBindingPostProcessorTests {
 	}
 
 	@Test
-	public void rebindableConfigurationPropertiesWithPropertySourcesPlaceholderConfigurer()
-			throws Exception {
+	public void rebindableConfigurationPropertiesWithPropertySourcesPlaceholderConfigurer() {
 		this.context = new AnnotationConfigApplicationContext();
 		MutablePropertySources sources = this.context.getEnvironment()
 				.getPropertySources();
@@ -274,6 +271,20 @@ public class ConfigurationPropertiesBindingPostProcessorTests {
 		this.thrown.expect(BeanCreationException.class);
 		this.thrown.expectCause(instanceOf(BindException.class));
 		this.context.refresh();
+	}
+
+	@Test
+	public void bindToMapWithNumericKey() {
+		this.context = new AnnotationConfigApplicationContext();
+		MutablePropertySources sources = this.context.getEnvironment()
+				.getPropertySources();
+		Map<String, Object> source = new LinkedHashMap<>();
+		source.put("sample.foos.1.name", "One");
+		sources.addFirst(new MapPropertySource("test-source", source));
+		this.context.register(NumericKeyConfiguration.class);
+		this.context.refresh();
+		NumericKeyConfiguration foo = this.context.getBean(NumericKeyConfiguration.class);
+		assertThat(foo.getFoos().get("1")).isNotNull();
 	}
 
 	private void prepareConverterContext(Class<?>... config) {
@@ -451,7 +462,7 @@ public class ConfigurationPropertiesBindingPostProcessorTests {
 	static class FactoryBeanTester implements FactoryBean, InitializingBean {
 
 		@Override
-		public Object getObject() throws Exception {
+		public Object getObject() {
 			return Object.class;
 		}
 
@@ -466,7 +477,7 @@ public class ConfigurationPropertiesBindingPostProcessorTests {
 		}
 
 		@Override
-		public void afterPropertiesSet() throws Exception {
+		public void afterPropertiesSet() {
 			ConfigurationPropertiesWithFactoryBean.factoryBeanInit = true;
 		}
 
@@ -603,6 +614,33 @@ public class ConfigurationPropertiesBindingPostProcessorTests {
 		Person(String firstName, String lastName) {
 			this.firstName = firstName;
 			this.lastName = lastName;
+		}
+
+	}
+
+	@Configuration
+	@EnableConfigurationProperties
+	@ConfigurationProperties(prefix = "sample")
+	static class NumericKeyConfiguration {
+
+		private Map<String, Foo> foos = new LinkedHashMap<>();
+
+		public Map<String, Foo> getFoos() {
+			return this.foos;
+		}
+
+		static class Foo {
+
+			private String name;
+
+			public String getName() {
+				return this.name;
+			}
+
+			public void setName(String name) {
+				this.name = name;
+			}
+
 		}
 
 	}

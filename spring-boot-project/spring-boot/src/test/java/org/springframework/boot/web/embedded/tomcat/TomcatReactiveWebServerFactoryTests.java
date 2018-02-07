@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,16 +19,24 @@ package org.springframework.boot.web.embedded.tomcat;
 import java.util.Arrays;
 
 import org.apache.catalina.Context;
+import org.apache.catalina.LifecycleEvent;
+import org.apache.catalina.LifecycleListener;
 import org.apache.catalina.connector.Connector;
+import org.apache.catalina.core.AprLifecycleListener;
 import org.junit.Test;
 import org.mockito.InOrder;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import org.springframework.boot.web.reactive.server.AbstractReactiveWebServerFactoryTests;
 import org.springframework.http.server.reactive.HttpHandler;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 /**
  * Tests for {@link TomcatReactiveWebServerFactory}.
@@ -45,7 +53,7 @@ public class TomcatReactiveWebServerFactoryTests
 	}
 
 	@Test
-	public void tomcatCustomizers() throws Exception {
+	public void tomcatCustomizers() {
 		TomcatReactiveWebServerFactory factory = getFactory();
 		TomcatContextCustomizer[] listeners = new TomcatContextCustomizer[4];
 		for (int i = 0; i < listeners.length; i++) {
@@ -57,6 +65,48 @@ public class TomcatReactiveWebServerFactoryTests
 		InOrder ordered = inOrder((Object[]) listeners);
 		for (TomcatContextCustomizer listener : listeners) {
 			ordered.verify(listener).customize(any(Context.class));
+		}
+	}
+
+	@Test
+	public void contextIsAddedToHostBeforeCustomizersAreCalled() throws Exception {
+		TomcatReactiveWebServerFactory factory = getFactory();
+		TomcatContextCustomizer customizer = mock(TomcatContextCustomizer.class);
+		willAnswer(new Answer<Void>() {
+
+			@Override
+			public Void answer(InvocationOnMock invocation) throws Throwable {
+				assertThat(((Context) invocation.getArguments()[0]).getParent())
+						.isNotNull();
+				return null;
+			}
+
+		}).given(customizer).customize(any(Context.class));
+		factory.addContextCustomizers(customizer);
+		this.webServer = factory.getWebServer(mock(HttpHandler.class));
+		verify(customizer).customize(any(Context.class));
+	}
+
+	@Test
+	public void defaultTomcatListeners() {
+		TomcatReactiveWebServerFactory factory = getFactory();
+		assertThat(factory.getContextLifecycleListeners()).hasSize(1).first()
+				.isInstanceOf(AprLifecycleListener.class);
+	}
+
+	@Test
+	public void tomcatListeners() {
+		TomcatReactiveWebServerFactory factory = getFactory();
+		LifecycleListener[] listeners = new LifecycleListener[4];
+		for (int i = 0; i < listeners.length; i++) {
+			listeners[i] = mock(LifecycleListener.class);
+		}
+		factory.setContextLifecycleListeners(Arrays.asList(listeners[0], listeners[1]));
+		factory.addContextLifecycleListeners(listeners[2], listeners[3]);
+		this.webServer = factory.getWebServer(mock(HttpHandler.class));
+		InOrder ordered = inOrder((Object[]) listeners);
+		for (LifecycleListener listener : listeners) {
+			ordered.verify(listener).lifecycleEvent(any(LifecycleEvent.class));
 		}
 	}
 
@@ -77,7 +127,7 @@ public class TomcatReactiveWebServerFactoryTests
 	}
 
 	@Test
-	public void tomcatConnectorCustomizersShouldBeInvoked() throws Exception {
+	public void tomcatConnectorCustomizersShouldBeInvoked() {
 		TomcatReactiveWebServerFactory factory = getFactory();
 		HttpHandler handler = mock(HttpHandler.class);
 		TomcatConnectorCustomizer[] listeners = new TomcatConnectorCustomizer[4];

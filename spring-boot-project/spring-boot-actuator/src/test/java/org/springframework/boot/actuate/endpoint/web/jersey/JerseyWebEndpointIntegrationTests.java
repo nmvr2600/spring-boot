@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,17 @@
 
 package org.springframework.boot.actuate.endpoint.web.jersey;
 
+import java.io.IOException;
+import java.security.Principal;
 import java.util.Collection;
 import java.util.HashSet;
 
+import javax.servlet.Filter;
+import javax.servlet.FilterChain;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletRequestWrapper;
+import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.ext.ContextResolver;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -27,16 +35,20 @@ import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.server.model.Resource;
 import org.glassfish.jersey.servlet.ServletContainer;
 
-import org.springframework.boot.actuate.endpoint.web.AbstractWebEndpointIntegrationTests;
 import org.springframework.boot.actuate.endpoint.web.EndpointMediaTypes;
-import org.springframework.boot.actuate.endpoint.web.annotation.WebAnnotationEndpointDiscoverer;
+import org.springframework.boot.actuate.endpoint.web.annotation.AbstractWebEndpointIntegrationTests;
+import org.springframework.boot.actuate.endpoint.web.annotation.WebEndpointDiscoverer;
 import org.springframework.boot.endpoint.web.EndpointMapping;
 import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory;
 import org.springframework.boot.web.servlet.ServletRegistrationBean;
 import org.springframework.boot.web.servlet.context.AnnotationConfigServletWebServerApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.core.env.Environment;
+import org.springframework.http.HttpStatus;
+import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
  * Integration tests for web endpoints exposed using Jersey.
@@ -64,6 +76,17 @@ public class JerseyWebEndpointIntegrationTests extends
 		return context.getWebServer().getPort();
 	}
 
+	@Override
+	protected void validateErrorBody(WebTestClient.BodyContentSpec body,
+			HttpStatus status, String path, String message) {
+		// Jersey doesn't support the general error page handling
+	}
+
+	@Override
+	protected Class<?> getSecuredPrincipalEndpointConfiguration() {
+		return SecuredPrincipalEndpointConfiguration.class;
+	}
+
 	@Configuration
 	static class JerseyConfiguration {
 
@@ -81,18 +104,55 @@ public class JerseyWebEndpointIntegrationTests extends
 
 		@Bean
 		public ResourceConfig resourceConfig(Environment environment,
-				WebAnnotationEndpointDiscoverer endpointDiscoverer,
+				WebEndpointDiscoverer endpointDiscoverer,
 				EndpointMediaTypes endpointMediaTypes) {
 			ResourceConfig resourceConfig = new ResourceConfig();
 			Collection<Resource> resources = new JerseyEndpointResourceFactory()
 					.createEndpointResources(
 							new EndpointMapping(environment.getProperty("endpointPath")),
-							endpointDiscoverer.discoverEndpoints(), endpointMediaTypes);
+							endpointDiscoverer.getEndpoints(), endpointMediaTypes);
 			resourceConfig.registerResources(new HashSet<>(resources));
 			resourceConfig.register(JacksonFeature.class);
 			resourceConfig.register(new ObjectMapperContextResolver(new ObjectMapper()),
 					ContextResolver.class);
 			return resourceConfig;
+		}
+
+	}
+
+	@Configuration
+	@Import(PrincipalEndpointConfiguration.class)
+	static class SecuredPrincipalEndpointConfiguration {
+
+		@Bean
+		public Filter securityFilter() {
+			return new OncePerRequestFilter() {
+
+				@Override
+				protected void doFilterInternal(HttpServletRequest request,
+						HttpServletResponse response, FilterChain filterChain)
+								throws ServletException, IOException {
+					filterChain.doFilter(new HttpServletRequestWrapper(request) {
+
+						@Override
+						public Principal getUserPrincipal() {
+
+							return new Principal() {
+
+								@Override
+								public String getName() {
+									return "Alice";
+								}
+
+							};
+
+						}
+
+					}, response);
+				}
+
+			};
+
 		}
 
 	}

@@ -21,16 +21,13 @@ import reactor.core.publisher.Mono;
 
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.web.reactive.MockReactiveWebServerFactory;
-import org.springframework.boot.test.context.runner.ApplicationContextRunner;
-import org.springframework.boot.web.reactive.context.ReactiveWebServerApplicationContext;
+import org.springframework.boot.test.context.runner.ReactiveWebApplicationContextRunner;
 import org.springframework.boot.web.reactive.server.ReactiveWebServerFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.server.reactive.HttpHandler;
 import org.springframework.security.authentication.ReactiveAuthenticationManager;
-import org.springframework.security.config.annotation.web.reactive.ServerHttpSecurityConfiguration;
-import org.springframework.security.config.annotation.web.reactive.WebFluxSecurityConfiguration;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.MapReactiveUserDetailsService;
 import org.springframework.security.core.userdetails.ReactiveUserDetailsService;
@@ -49,8 +46,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 public class ReactiveSecurityAutoConfigurationTests {
 
-	private ApplicationContextRunner contextRunner = new ApplicationContextRunner(
-			ReactiveWebServerApplicationContext::new);
+	private ReactiveWebApplicationContextRunner contextRunner = new ReactiveWebApplicationContextRunner();
 
 	@Test
 	public void enablesWebFluxSecurity() {
@@ -58,8 +54,7 @@ public class ReactiveSecurityAutoConfigurationTests {
 				.withConfiguration(
 						AutoConfigurations.of(ReactiveSecurityAutoConfiguration.class))
 				.run((context) -> {
-					assertThat(context).getBean(ServerHttpSecurityConfiguration.class)
-							.isNotNull();
+					assertThat(context).getBean(WebFilterChainProxy.class).isNotNull();
 					assertThat(context).getBean(WebFluxSecurityConfiguration.class)
 							.isNotNull();
 					assertThat(context).getBean(WebFilterChainProxy.class).isNotNull();
@@ -80,7 +75,7 @@ public class ReactiveSecurityAutoConfigurationTests {
 	}
 
 	@Test
-	public void doesNotConfigureDefaultUserIfUserDetailsRepositoryAvailable() {
+	public void doesNotConfigureDefaultUserIfUserDetailsServiceAvailable() {
 		this.contextRunner.withUserConfiguration(UserConfig.class, TestConfig.class)
 				.withConfiguration(
 						AutoConfigurations.of(ReactiveSecurityAutoConfiguration.class))

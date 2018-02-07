@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,11 @@
 
 package org.springframework.boot.web.embedded.tomcat;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import javax.naming.NamingException;
 
@@ -40,9 +42,11 @@ import org.springframework.util.Assert;
 
 /**
  * {@link WebServer} that can be used to control a Tomcat web server. Usually this class
- * should be created using the {@link TomcatReactiveWebServerFactory} and not directly.
+ * should be created using the {@link TomcatReactiveWebServerFactory} of
+ * {@link TomcatServletWebServerFactory}, but not directly.
  *
  * @author Brian Clozel
+ * @author Kristine Jetzke
  * @since 2.0.0
  */
 public class TomcatWebServer implements WebServer {
@@ -186,12 +190,13 @@ public class TomcatWebServer implements WebServer {
 				addPreviouslyRemovedConnectors();
 				Connector connector = this.tomcat.getConnector();
 				if (connector != null && this.autoStart) {
-					startConnector(connector);
+					startConnector();
 				}
 				checkThatConnectorsHaveStarted();
 				this.started = true;
 				TomcatWebServer.logger
-						.info("Tomcat started on port(s): " + getPortsDescription(true));
+						.info("Tomcat started on port(s): " + getPortsDescription(true)
+								+ " with context path '" + getContextPath() + "'");
 			}
 			catch (ConnectorStartFailedException ex) {
 				stopSilently();
@@ -259,7 +264,7 @@ public class TomcatWebServer implements WebServer {
 		}
 	}
 
-	private void startConnector(Connector connector) {
+	private void startConnector() {
 		try {
 			for (Container child : this.tomcat.getHost().findChildren()) {
 				if (child instanceof TomcatEmbeddedContext) {
@@ -320,6 +325,13 @@ public class TomcatWebServer implements WebServer {
 			return connector.getLocalPort();
 		}
 		return 0;
+	}
+
+	private String getContextPath() {
+		return Arrays.stream(this.tomcat.getHost().findChildren())
+				.filter(TomcatEmbeddedContext.class::isInstance)
+				.map(TomcatEmbeddedContext.class::cast)
+				.map(TomcatEmbeddedContext::getPath).collect(Collectors.joining(" "));
 	}
 
 	/**

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,17 +22,19 @@ import org.springframework.http.HttpStatus;
  * Authorization exceptions thrown to limit access to the endpoints.
  *
  * @author Madhura Bhave
+ * @since 2.0.0
  */
-class CloudFoundryAuthorizationException extends RuntimeException {
+public class CloudFoundryAuthorizationException extends RuntimeException {
 
 	private final Reason reason;
 
-	CloudFoundryAuthorizationException(Reason reason, String message) {
+	public CloudFoundryAuthorizationException(Reason reason, String message) {
 		this(reason, message, null);
 	}
 
-	CloudFoundryAuthorizationException(Reason reason, String message, Throwable cause) {
-		super(message);
+	public CloudFoundryAuthorizationException(Reason reason, String message,
+			Throwable cause) {
+		super(message, cause);
 		this.reason = reason;
 	}
 
@@ -55,7 +57,7 @@ class CloudFoundryAuthorizationException extends RuntimeException {
 	/**
 	 * Reasons why the exception can be thrown.
 	 */
-	enum Reason {
+	public enum Reason {
 
 		ACCESS_DENIED(HttpStatus.FORBIDDEN),
 

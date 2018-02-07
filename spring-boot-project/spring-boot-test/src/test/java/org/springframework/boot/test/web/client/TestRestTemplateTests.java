@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -63,6 +63,7 @@ import static org.mockito.Mockito.verify;
  * @author Phillip Webb
  * @author Stephane Nicoll
  * @author Andy Wilkinson
+ * @author Kristine Jetzke
  */
 public class TestRestTemplateTests {
 
@@ -82,6 +83,29 @@ public class TestRestTemplateTests {
 	}
 
 	@Test
+	public void getRootUriRootUriSetViaRestTemplateBuilder() {
+		String rootUri = "http://example.com";
+		RestTemplate delegate = new RestTemplateBuilder().rootUri(rootUri).build();
+		assertThat(new TestRestTemplate(delegate).getRootUri()).isEqualTo(rootUri);
+	}
+
+	@Test
+	public void getRootUriRootUriSetViaLocalHostUriTemplateHandler() {
+		String rootUri = "http://example.com";
+		TestRestTemplate template = new TestRestTemplate();
+		LocalHostUriTemplateHandler templateHandler = mock(
+				LocalHostUriTemplateHandler.class);
+		given(templateHandler.getRootUri()).willReturn(rootUri);
+		template.setUriTemplateHandler(templateHandler);
+		assertThat(template.getRootUri()).isEqualTo(rootUri);
+	}
+
+	@Test
+	public void getRootUriRootUriNotSet() {
+		assertThat(new TestRestTemplate().getRootUri()).isEqualTo("");
+	}
+
+	@Test
 	public void authenticated() {
 		assertThat(new TestRestTemplate("user", "password").getRestTemplate()
 				.getRequestFactory())
@@ -89,7 +113,7 @@ public class TestRestTemplateTests {
 	}
 
 	@Test
-	public void options() throws Exception {
+	public void options() {
 		TestRestTemplate template = new TestRestTemplate(
 				HttpClientOption.ENABLE_REDIRECTS);
 		CustomHttpComponentsClientHttpRequestFactory factory = (CustomHttpComponentsClientHttpRequestFactory) template
@@ -99,7 +123,7 @@ public class TestRestTemplateTests {
 	}
 
 	@Test
-	public void restOperationsAreAvailable() throws Exception {
+	public void restOperationsAreAvailable() {
 		RestTemplate delegate = mock(RestTemplate.class);
 		given(delegate.getUriTemplateHandler())
 				.willReturn(new DefaultUriBuilderFactory());
@@ -107,8 +131,7 @@ public class TestRestTemplateTests {
 		ReflectionUtils.doWithMethods(RestOperations.class, new MethodCallback() {
 
 			@Override
-			public void doWith(Method method)
-					throws IllegalArgumentException, IllegalAccessException {
+			public void doWith(Method method) throws IllegalArgumentException {
 				Method equivalent = ReflectionUtils.findMethod(TestRestTemplate.class,
 						method.getName(), method.getParameterTypes());
 				assertThat(equivalent).as("Method %s not found", method).isNotNull();
@@ -199,7 +222,7 @@ public class TestRestTemplateTests {
 	}
 
 	@Test
-	public void withBasicAuthDoesNotResetErrorHandler() throws Exception {
+	public void withBasicAuthDoesNotResetErrorHandler() {
 		TestRestTemplate originalTemplate = new TestRestTemplate("foo", "bar");
 		ResponseErrorHandler errorHandler = mock(ResponseErrorHandler.class);
 		originalTemplate.getRestTemplate().setErrorHandler(errorHandler);
@@ -313,7 +336,7 @@ public class TestRestTemplateTests {
 		request.setResponse(new MockClientHttpResponse(new byte[0], HttpStatus.OK));
 		URI absoluteUri = URI
 				.create("http://localhost:8080/a/b/c.txt?param=%7Bsomething%7D");
-		given(requestFactory.createRequest(eq(absoluteUri), (HttpMethod) any()))
+		given(requestFactory.createRequest(eq(absoluteUri), any(HttpMethod.class)))
 				.willReturn(request);
 		RestTemplate delegate = new RestTemplate();
 		TestRestTemplate template = new TestRestTemplate(delegate);
@@ -323,7 +346,7 @@ public class TestRestTemplateTests {
 		template.setUriTemplateHandler(uriTemplateHandler);
 		callback.doWithTestRestTemplate(template,
 				URI.create("/a/b/c.txt?param=%7Bsomething%7D"));
-		verify(requestFactory).createRequest(eq(absoluteUri), (HttpMethod) any());
+		verify(requestFactory).createRequest(eq(absoluteUri), any(HttpMethod.class));
 	}
 
 	private void assertBasicAuthorizationInterceptorCredentials(

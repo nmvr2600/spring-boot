@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package org.springframework.boot.configurationmetadata;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -32,12 +33,7 @@ import java.util.Map;
  */
 public final class ConfigurationMetadataRepositoryJsonBuilder {
 
-	/**
-	 * UTF-8 Charset.
-	 */
-	public static final Charset UTF_8 = Charset.forName("UTF-8");
-
-	private Charset defaultCharset = UTF_8;
+	private Charset defaultCharset = StandardCharsets.UTF_8;
 
 	private final JsonReader reader = new JsonReader();
 
@@ -159,8 +155,8 @@ public final class ConfigurationMetadataRepositoryJsonBuilder {
 	}
 
 	/**
-	 * Create a new builder instance using {@link #UTF_8} as the default charset and the
-	 * specified json resource.
+	 * Create a new builder instance using {@link StandardCharsets#UTF_8} as the default
+	 * charset and the specified json resource.
 	 * @param inputStreams the source input streams
 	 * @return a new {@link ConfigurationMetadataRepositoryJsonBuilder} instance.
 	 * @throws IOException on error
@@ -175,11 +171,12 @@ public final class ConfigurationMetadataRepositoryJsonBuilder {
 	}
 
 	/**
-	 * Create a new builder instance using {@link #UTF_8} as the default charset.
+	 * Create a new builder instance using {@link StandardCharsets#UTF_8} as the default
+	 * charset.
 	 * @return a new {@link ConfigurationMetadataRepositoryJsonBuilder} instance.
 	 */
 	public static ConfigurationMetadataRepositoryJsonBuilder create() {
-		return create(UTF_8);
+		return create(StandardCharsets.UTF_8);
 	}
 
 	/**

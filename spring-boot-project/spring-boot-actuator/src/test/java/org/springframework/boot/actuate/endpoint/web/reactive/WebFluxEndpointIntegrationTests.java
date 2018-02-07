@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,27 +16,37 @@
 
 package org.springframework.boot.actuate.endpoint.web.reactive;
 
+import java.security.Principal;
 import java.util.Arrays;
 
 import org.junit.Test;
+import reactor.core.publisher.Mono;
 
-import org.springframework.boot.actuate.endpoint.web.AbstractWebEndpointIntegrationTests;
 import org.springframework.boot.actuate.endpoint.web.EndpointMediaTypes;
-import org.springframework.boot.actuate.endpoint.web.annotation.WebAnnotationEndpointDiscoverer;
+import org.springframework.boot.actuate.endpoint.web.annotation.AbstractWebEndpointIntegrationTests;
+import org.springframework.boot.actuate.endpoint.web.annotation.WebEndpointDiscoverer;
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
+import org.springframework.boot.autoconfigure.web.reactive.error.ErrorWebFluxAutoConfiguration;
 import org.springframework.boot.endpoint.web.EndpointMapping;
 import org.springframework.boot.web.embedded.netty.NettyReactiveWebServerFactory;
+import org.springframework.boot.web.reactive.context.AnnotationConfigReactiveWebServerApplicationContext;
 import org.springframework.boot.web.reactive.context.ReactiveWebServerApplicationContext;
 import org.springframework.boot.web.reactive.context.ReactiveWebServerInitializedEvent;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.HttpHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.reactive.config.EnableWebFlux;
+import org.springframework.web.server.ServerWebExchange;
+import org.springframework.web.server.ServerWebExchangeDecorator;
+import org.springframework.web.server.WebFilter;
+import org.springframework.web.server.WebFilterChain;
 import org.springframework.web.server.adapter.WebHttpHandlerBuilder;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -80,9 +90,9 @@ public class WebFluxEndpointIntegrationTests
 	}
 
 	@Override
-	protected ReactiveWebServerApplicationContext createApplicationContext(
+	protected AnnotationConfigReactiveWebServerApplicationContext createApplicationContext(
 			Class<?>... config) {
-		ReactiveWebServerApplicationContext context = new ReactiveWebServerApplicationContext();
+		AnnotationConfigReactiveWebServerApplicationContext context = new AnnotationConfigReactiveWebServerApplicationContext();
 		context.register(config);
 		return context;
 	}
@@ -92,8 +102,14 @@ public class WebFluxEndpointIntegrationTests
 		return context.getBean(ReactiveConfiguration.class).port;
 	}
 
+	@Override
+	protected Class<?> getSecuredPrincipalEndpointConfiguration() {
+		return SecuredPrincipalEndpointConfiguration.class;
+	}
+
 	@Configuration
 	@EnableWebFlux
+	@ImportAutoConfiguration(ErrorWebFluxAutoConfiguration.class)
 	static class ReactiveConfiguration {
 
 		private int port;
@@ -110,21 +126,52 @@ public class WebFluxEndpointIntegrationTests
 
 		@Bean
 		public WebFluxEndpointHandlerMapping webEndpointHandlerMapping(
-				Environment environment,
-				WebAnnotationEndpointDiscoverer endpointDiscoverer,
+				Environment environment, WebEndpointDiscoverer endpointDiscoverer,
 				EndpointMediaTypes endpointMediaTypes) {
 			CorsConfiguration corsConfiguration = new CorsConfiguration();
 			corsConfiguration.setAllowedOrigins(Arrays.asList("http://example.com"));
 			corsConfiguration.setAllowedMethods(Arrays.asList("GET", "POST"));
 			return new WebFluxEndpointHandlerMapping(
 					new EndpointMapping(environment.getProperty("endpointPath")),
-					endpointDiscoverer.discoverEndpoints(), endpointMediaTypes,
+					endpointDiscoverer.getEndpoints(), endpointMediaTypes,
 					corsConfiguration);
 		}
 
 		@Bean
 		public ApplicationListener<ReactiveWebServerInitializedEvent> serverInitializedListener() {
 			return (event) -> this.port = event.getWebServer().getPort();
+		}
+
+	}
+
+	@Import(PrincipalEndpointConfiguration.class)
+	static class SecuredPrincipalEndpointConfiguration {
+
+		@Bean
+		public WebFilter webFilter() {
+			return new WebFilter() {
+
+				@Override
+				public Mono<Void> filter(ServerWebExchange exchange,
+						WebFilterChain chain) {
+					return chain.filter(new ServerWebExchangeDecorator(exchange) {
+
+						@Override
+						public Mono<Principal> getPrincipal() {
+							return Mono.just(new Principal() {
+
+								@Override
+								public String getName() {
+									return "Alice";
+								}
+
+							});
+						}
+
+					});
+				}
+
+			};
 		}
 
 	}

@@ -59,34 +59,33 @@ public class MixedNeo4jRepositoriesAutoConfigurationTests {
 	}
 
 	@Test
-	public void testDefaultRepositoryConfiguration() throws Exception {
+	public void testDefaultRepositoryConfiguration() {
 		load(TestConfiguration.class);
 		assertThat(this.context.getBean(CountryRepository.class)).isNotNull();
 	}
 
 	@Test
-	public void testMixedRepositoryConfiguration() throws Exception {
+	public void testMixedRepositoryConfiguration() {
 		load(MixedConfiguration.class);
 		assertThat(this.context.getBean(CountryRepository.class)).isNotNull();
 		assertThat(this.context.getBean(CityRepository.class)).isNotNull();
 	}
 
 	@Test
-	public void testJpaRepositoryConfigurationWithNeo4jTemplate() throws Exception {
+	public void testJpaRepositoryConfigurationWithNeo4jTemplate() {
 		load(JpaConfiguration.class);
 		assertThat(this.context.getBean(CityRepository.class)).isNotNull();
 	}
 
 	@Test
 	@Ignore
-	public void testJpaRepositoryConfigurationWithNeo4jOverlap() throws Exception {
+	public void testJpaRepositoryConfigurationWithNeo4jOverlap() {
 		load(OverlapConfiguration.class);
 		assertThat(this.context.getBean(CityRepository.class)).isNotNull();
 	}
 
 	@Test
-	public void testJpaRepositoryConfigurationWithNeo4jOverlapDisabled()
-			throws Exception {
+	public void testJpaRepositoryConfigurationWithNeo4jOverlapDisabled() {
 		load(OverlapConfiguration.class, "spring.data.neo4j.repositories.enabled:false");
 		assertThat(this.context.getBean(CityRepository.class)).isNotNull();
 	}
@@ -94,8 +93,7 @@ public class MixedNeo4jRepositoriesAutoConfigurationTests {
 	private void load(Class<?> config, String... environment) {
 		AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
 		TestPropertyValues.of(environment)
-				.and("spring.datasource.initialization-mode=never")
-				.applyTo(context);
+				.and("spring.datasource.initialization-mode=never").applyTo(context);
 		context.register(config);
 		context.register(DataSourceAutoConfiguration.class,
 				HibernateJpaAutoConfiguration.class,

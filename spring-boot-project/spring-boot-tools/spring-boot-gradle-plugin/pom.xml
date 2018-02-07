@@ -29,6 +29,12 @@
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-compress</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>org.jetbrains.kotlin</groupId>
+			<artifactId>kotlin-gradle-plugin</artifactId>
+			<version>${kotlin.version}</version>
+			<optional>true</optional>
+		</dependency>
 	</dependencies>
 	<build>
 		<plugins>
@@ -259,6 +265,7 @@
 						<configuration>
 							<sourceDocumentName>index.adoc</sourceDocumentName>
 							<attributes>
+								<github-tag>${github-tag}</github-tag>
 								<version-type>${version-type}</version-type>
 								<version>${project.version}</version>
 							</attributes>

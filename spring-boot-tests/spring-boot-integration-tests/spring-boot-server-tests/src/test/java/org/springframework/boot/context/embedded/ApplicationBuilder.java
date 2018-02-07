@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 package org.springframework.boot.context.embedded;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
@@ -71,7 +70,7 @@ class ApplicationBuilder {
 	}
 
 	private File doBuildApplication(File containerFolder)
-			throws IOException, FileNotFoundException, MavenInvocationException {
+			throws IOException, MavenInvocationException {
 		File resourcesJar = createResourcesJar();
 		File appFolder = new File(containerFolder, "app");
 		appFolder.mkdirs();
@@ -81,7 +80,7 @@ class ApplicationBuilder {
 		return new File(appFolder, "target/app-0.0.1." + this.packaging);
 	}
 
-	private File createResourcesJar() throws IOException, FileNotFoundException {
+	private File createResourcesJar() throws IOException {
 		File resourcesJar = new File(this.temp.getRoot(), "resources.jar");
 		if (resourcesJar.exists()) {
 			return resourcesJar;
@@ -98,8 +97,7 @@ class ApplicationBuilder {
 		return resourcesJar;
 	}
 
-	private void writePom(File appFolder, File resourcesJar)
-			throws FileNotFoundException, IOException {
+	private void writePom(File appFolder, File resourcesJar) throws IOException {
 		Map<String, Object> context = new HashMap<>();
 		context.put("packaging", this.packaging);
 		context.put("container", this.container);

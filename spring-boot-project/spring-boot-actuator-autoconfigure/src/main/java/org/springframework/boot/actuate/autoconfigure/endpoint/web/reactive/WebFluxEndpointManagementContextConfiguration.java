@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,20 +16,25 @@
 
 package org.springframework.boot.actuate.autoconfigure.endpoint.web.reactive;
 
-import org.springframework.boot.actuate.autoconfigure.endpoint.EndpointProvider;
-import org.springframework.boot.actuate.autoconfigure.endpoint.web.DefaultEndpointPathProvider;
-import org.springframework.boot.actuate.autoconfigure.endpoint.web.EndpointPathProvider;
+import org.springframework.boot.actuate.autoconfigure.endpoint.web.CorsEndpointProperties;
 import org.springframework.boot.actuate.autoconfigure.endpoint.web.WebEndpointProperties;
 import org.springframework.boot.actuate.autoconfigure.web.ManagementContextConfiguration;
 import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
 import org.springframework.boot.actuate.endpoint.web.EndpointMediaTypes;
-import org.springframework.boot.actuate.endpoint.web.WebEndpointOperation;
+import org.springframework.boot.actuate.endpoint.web.WebEndpointsSupplier;
+import org.springframework.boot.actuate.endpoint.web.annotation.ControllerEndpointsSupplier;
+import org.springframework.boot.actuate.endpoint.web.reactive.ControllerEndpointHandlerMapping;
 import org.springframework.boot.actuate.endpoint.web.reactive.WebFluxEndpointHandlerMapping;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication.Type;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.endpoint.web.EndpointMapping;
 import org.springframework.context.annotation.Bean;
+import org.springframework.http.server.reactive.HttpHandler;
+import org.springframework.web.reactive.DispatcherHandler;
 
 /**
  * {@link ManagementContextConfiguration} for Reactive {@link Endpoint} concerns.
@@ -40,25 +45,35 @@ import org.springframework.context.annotation.Bean;
  */
 @ManagementContextConfiguration
 @ConditionalOnWebApplication(type = Type.REACTIVE)
+@ConditionalOnClass({ DispatcherHandler.class, HttpHandler.class })
+@ConditionalOnBean(WebEndpointsSupplier.class)
+@EnableConfigurationProperties(CorsEndpointProperties.class)
 public class WebFluxEndpointManagementContextConfiguration {
 
 	@Bean
 	@ConditionalOnMissingBean
 	public WebFluxEndpointHandlerMapping webEndpointReactiveHandlerMapping(
-			EndpointProvider<WebEndpointOperation> provider,
-			EndpointMediaTypes endpointMediaTypes,
+			WebEndpointsSupplier webEndpointsSupplier,
+			EndpointMediaTypes endpointMediaTypes, CorsEndpointProperties corsProperties,
 			WebEndpointProperties webEndpointProperties) {
-		return new WebFluxEndpointHandlerMapping(
-				new EndpointMapping(webEndpointProperties.getBasePath()),
-				provider.getEndpoints(), endpointMediaTypes);
+		EndpointMapping endpointMapping = new EndpointMapping(
+				webEndpointProperties.getBasePath());
+		return new WebFluxEndpointHandlerMapping(endpointMapping,
+				webEndpointsSupplier.getEndpoints(), endpointMediaTypes,
+				corsProperties.toCorsConfiguration());
 	}
 
 	@Bean
 	@ConditionalOnMissingBean
-	public EndpointPathProvider endpointPathProvider(
-			EndpointProvider<WebEndpointOperation> provider,
+	public ControllerEndpointHandlerMapping controllerEndpointHandlerMapping(
+			ControllerEndpointsSupplier controllerEndpointsSupplier,
+			CorsEndpointProperties corsProperties,
 			WebEndpointProperties webEndpointProperties) {
-		return new DefaultEndpointPathProvider(provider, webEndpointProperties);
+		EndpointMapping endpointMapping = new EndpointMapping(
+				webEndpointProperties.getBasePath());
+		return new ControllerEndpointHandlerMapping(endpointMapping,
+				controllerEndpointsSupplier.getEndpoints(),
+				corsProperties.toCorsConfiguration());
 	}
 
 }

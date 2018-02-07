@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,20 +18,17 @@ package org.springframework.boot.autoconfigure.web.servlet;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.EnumSet;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 
-import javax.servlet.ServletContext;
-import javax.servlet.ServletException;
-import javax.servlet.SessionCookieConfig;
-import javax.servlet.SessionTrackingMode;
-
 import org.apache.catalina.Context;
 import org.apache.catalina.Valve;
+import org.apache.catalina.startup.Tomcat;
 import org.apache.catalina.valves.AccessLogValve;
+import org.apache.catalina.valves.ErrorReportValve;
 import org.apache.catalina.valves.RemoteIpValve;
 import org.apache.coyote.AbstractProtocol;
 import org.eclipse.jetty.server.NCSARequestLog;
@@ -49,18 +46,20 @@ import org.springframework.boot.context.properties.source.ConfigurationPropertyS
 import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 import org.springframework.boot.web.embedded.jetty.JettyServletWebServerFactory;
 import org.springframework.boot.web.embedded.jetty.JettyWebServer;
-import org.springframework.boot.web.embedded.tomcat.TomcatContextCustomizer;
 import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory;
 import org.springframework.boot.web.embedded.tomcat.TomcatWebServer;
 import org.springframework.boot.web.embedded.undertow.UndertowServletWebServerFactory;
+import org.springframework.boot.web.server.Ssl;
 import org.springframework.boot.web.servlet.ServletContextInitializer;
 import org.springframework.boot.web.servlet.server.ConfigurableServletWebServerFactory;
+import org.springframework.boot.web.servlet.server.Jsp;
+import org.springframework.boot.web.servlet.server.Session;
+import org.springframework.boot.web.servlet.server.Session.Cookie;
 import org.springframework.mock.env.MockEnvironment;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -70,6 +69,7 @@ import static org.mockito.Mockito.verify;
  * Tests for {@link DefaultServletWebServerFactoryCustomizer}.
  *
  * @author Brian Clozel
+ * @author Yunkun Huang
  */
 public class DefaultServletWebServerFactoryCustomizerTests {
 
@@ -81,7 +81,7 @@ public class DefaultServletWebServerFactoryCustomizerTests {
 	private ArgumentCaptor<ServletContextInitializer[]> initializersCaptor;
 
 	@Before
-	public void setup() throws Exception {
+	public void setup() {
 		MockitoAnnotations.initMocks(this);
 		this.customizer = new DefaultServletWebServerFactoryCustomizer(this.properties);
 	}
@@ -151,7 +151,7 @@ public class DefaultServletWebServerFactoryCustomizerTests {
 	}
 
 	@Test
-	public void redirectContextRootCanBeConfigured() throws Exception {
+	public void redirectContextRootCanBeConfigured() {
 		Map<String, String> map = new HashMap<>();
 		map.put("server.tomcat.redirect-context-root", "false");
 		bindProperties(map);
@@ -159,15 +159,45 @@ public class DefaultServletWebServerFactoryCustomizerTests {
 		assertThat(tomcat.getRedirectContextRoot()).isEqualTo(false);
 		TomcatServletWebServerFactory factory = new TomcatServletWebServerFactory();
 		this.customizer.customize(factory);
-		Context context = mock(Context.class);
-		for (TomcatContextCustomizer customizer : factory.getTomcatContextCustomizers()) {
-			customizer.customize(context);
-		}
-		verify(context).setMapperContextRootRedirectEnabled(false);
+		Context context = (Context) ((TomcatWebServer) factory.getWebServer()).getTomcat()
+				.getHost().findChildren()[0];
+		assertThat(context.getMapperContextRootRedirectEnabled()).isFalse();
 	}
 
 	@Test
-	public void testCustomizeTomcat() throws Exception {
+	public void useRelativeRedirectsCanBeConfigured() {
+		Map<String, String> map = new HashMap<>();
+		map.put("server.tomcat.use-relative-redirects", "true");
+		bindProperties(map);
+		ServerProperties.Tomcat tomcat = this.properties.getTomcat();
+		assertThat(tomcat.getUseRelativeRedirects()).isTrue();
+		TomcatServletWebServerFactory factory = new TomcatServletWebServerFactory();
+		this.customizer.customize(factory);
+		Context context = (Context) ((TomcatWebServer) factory.getWebServer()).getTomcat()
+				.getHost().findChildren()[0];
+		assertThat(context.getUseRelativeRedirects()).isTrue();
+	}
+
+	@Test
+	public void errorReportValveIsConfiguredToNotReportStackTraces() {
+		TomcatServletWebServerFactory factory = new TomcatServletWebServerFactory();
+		Map<String, String> map = new HashMap<String, String>();
+		bindProperties(map);
+		this.customizer.customize(factory);
+		Valve[] valves = ((TomcatWebServer) factory.getWebServer()).getTomcat().getHost()
+				.getPipeline().getValves();
+		assertThat(valves).hasAtLeastOneElementOfType(ErrorReportValve.class);
+		for (Valve valve : valves) {
+			if (valve instanceof ErrorReportValve) {
+				ErrorReportValve errorReportValve = (ErrorReportValve) valve;
+				assertThat(errorReportValve.isShowReport()).isFalse();
+				assertThat(errorReportValve.isShowServerInfo()).isFalse();
+			}
+		}
+	}
+
+	@Test
+	public void testCustomizeTomcat() {
 		ConfigurableServletWebServerFactory factory = mock(
 				ConfigurableServletWebServerFactory.class);
 		this.customizer.customize(factory);
@@ -175,7 +205,7 @@ public class DefaultServletWebServerFactoryCustomizerTests {
 	}
 
 	@Test
-	public void testDefaultDisplayName() throws Exception {
+	public void testDefaultDisplayName() {
 		ConfigurableServletWebServerFactory factory = mock(
 				ConfigurableServletWebServerFactory.class);
 		this.customizer.customize(factory);
@@ -183,7 +213,7 @@ public class DefaultServletWebServerFactoryCustomizerTests {
 	}
 
 	@Test
-	public void testCustomizeDisplayName() throws Exception {
+	public void testCustomizeDisplayName() {
 		ConfigurableServletWebServerFactory factory = mock(
 				ConfigurableServletWebServerFactory.class);
 		this.properties.setDisplayName("TestName");
@@ -192,39 +222,55 @@ public class DefaultServletWebServerFactoryCustomizerTests {
 	}
 
 	@Test
-	public void customizeSessionProperties() throws Exception {
-		Map<String, String> map = new HashMap<>();
-		map.put("server.session.timeout", "123");
-		map.put("server.session.tracking-modes", "cookie,url");
-		map.put("server.session.cookie.name", "testname");
-		map.put("server.session.cookie.domain", "testdomain");
-		map.put("server.session.cookie.path", "/testpath");
-		map.put("server.session.cookie.comment", "testcomment");
-		map.put("server.session.cookie.http-only", "true");
-		map.put("server.session.cookie.secure", "true");
-		map.put("server.session.cookie.max-age", "60");
-		bindProperties(map);
+	public void testCustomizeSsl() {
 		ConfigurableServletWebServerFactory factory = mock(
 				ConfigurableServletWebServerFactory.class);
-		ServletContext servletContext = mock(ServletContext.class);
-		SessionCookieConfig sessionCookieConfig = mock(SessionCookieConfig.class);
-		given(servletContext.getSessionCookieConfig()).willReturn(sessionCookieConfig);
+		Ssl ssl = mock(Ssl.class);
+		this.properties.setSsl(ssl);
 		this.customizer.customize(factory);
-		triggerInitializers(factory, servletContext);
-		verify(factory).setSessionTimeout(123);
-		verify(servletContext).setSessionTrackingModes(
-				EnumSet.of(SessionTrackingMode.COOKIE, SessionTrackingMode.URL));
-		verify(sessionCookieConfig).setName("testname");
-		verify(sessionCookieConfig).setDomain("testdomain");
-		verify(sessionCookieConfig).setPath("/testpath");
-		verify(sessionCookieConfig).setComment("testcomment");
-		verify(sessionCookieConfig).setHttpOnly(true);
-		verify(sessionCookieConfig).setSecure(true);
-		verify(sessionCookieConfig).setMaxAge(60);
+		verify(factory).setSsl(ssl);
 	}
 
 	@Test
-	public void testCustomizeTomcatPort() throws Exception {
+	public void testCustomizeJsp() {
+		ConfigurableServletWebServerFactory factory = mock(
+				ConfigurableServletWebServerFactory.class);
+		this.customizer.customize(factory);
+		verify(factory).setJsp(any(Jsp.class));
+	}
+
+	@Test
+	public void customizeSessionProperties() throws Exception {
+		Map<String, String> map = new HashMap<>();
+		map.put("server.servlet.session.timeout", "123");
+		map.put("server.servlet.session.tracking-modes", "cookie,url");
+		map.put("server.servlet.session.cookie.name", "testname");
+		map.put("server.servlet.session.cookie.domain", "testdomain");
+		map.put("server.servlet.session.cookie.path", "/testpath");
+		map.put("server.servlet.session.cookie.comment", "testcomment");
+		map.put("server.servlet.session.cookie.http-only", "true");
+		map.put("server.servlet.session.cookie.secure", "true");
+		map.put("server.servlet.session.cookie.max-age", "60");
+		bindProperties(map);
+		ConfigurableServletWebServerFactory factory = mock(
+				ConfigurableServletWebServerFactory.class);
+		this.customizer.customize(factory);
+		ArgumentCaptor<Session> sessionCaptor = ArgumentCaptor.forClass(Session.class);
+		verify(factory).setSession(sessionCaptor.capture());
+		assertThat(sessionCaptor.getValue().getTimeout())
+				.isEqualTo(Duration.ofSeconds(123));
+		Cookie cookie = sessionCaptor.getValue().getCookie();
+		assertThat(cookie.getName()).isEqualTo("testname");
+		assertThat(cookie.getDomain()).isEqualTo("testdomain");
+		assertThat(cookie.getPath()).isEqualTo("/testpath");
+		assertThat(cookie.getComment()).isEqualTo("testcomment");
+		assertThat(cookie.getHttpOnly()).isTrue();
+		assertThat(cookie.getMaxAge()).isEqualTo(Duration.ofSeconds(60));
+
+	}
+
+	@Test
+	public void testCustomizeTomcatPort() {
 		ConfigurableServletWebServerFactory factory = mock(
 				ConfigurableServletWebServerFactory.class);
 		this.properties.setPort(8080);
@@ -233,7 +279,7 @@ public class DefaultServletWebServerFactoryCustomizerTests {
 	}
 
 	@Test
-	public void customizeTomcatDisplayName() throws Exception {
+	public void customizeTomcatDisplayName() {
 		Map<String, String> map = new HashMap<>();
 		map.put("server.display-name", "MyBootApp");
 		bindProperties(map);
@@ -243,7 +289,7 @@ public class DefaultServletWebServerFactoryCustomizerTests {
 	}
 
 	@Test
-	public void disableTomcatRemoteIpValve() throws Exception {
+	public void disableTomcatRemoteIpValve() {
 		Map<String, String> map = new HashMap<>();
 		map.put("server.tomcat.remote-ip-header", "");
 		map.put("server.tomcat.protocol-header", "");
@@ -254,7 +300,7 @@ public class DefaultServletWebServerFactoryCustomizerTests {
 	}
 
 	@Test
-	public void defaultTomcatBackgroundProcessorDelay() throws Exception {
+	public void defaultTomcatBackgroundProcessorDelay() {
 		TomcatServletWebServerFactory factory = new TomcatServletWebServerFactory();
 		this.customizer.customize(factory);
 		TomcatWebServer webServer = (TomcatWebServer) factory.getWebServer();
@@ -264,7 +310,7 @@ public class DefaultServletWebServerFactoryCustomizerTests {
 	}
 
 	@Test
-	public void customTomcatBackgroundProcessorDelay() throws Exception {
+	public void customTomcatBackgroundProcessorDelay() {
 		Map<String, String> map = new HashMap<>();
 		map.put("server.tomcat.background-processor-delay", "5");
 		bindProperties(map);
@@ -277,7 +323,7 @@ public class DefaultServletWebServerFactoryCustomizerTests {
 	}
 
 	@Test
-	public void defaultTomcatRemoteIpValve() throws Exception {
+	public void defaultTomcatRemoteIpValve() {
 		Map<String, String> map = new HashMap<>();
 		// Since 1.1.7 you need to specify at least the protocol
 		map.put("server.tomcat.protocol-header", "X-Forwarded-Proto");
@@ -287,14 +333,14 @@ public class DefaultServletWebServerFactoryCustomizerTests {
 	}
 
 	@Test
-	public void setUseForwardHeadersTomcat() throws Exception {
+	public void setUseForwardHeadersTomcat() {
 		// Since 1.3.0 no need to explicitly set header names if use-forward-header=true
 		this.properties.setUseForwardHeaders(true);
 		testRemoteIpValveConfigured();
 	}
 
 	@Test
-	public void deduceUseForwardHeadersTomcat() throws Exception {
+	public void deduceUseForwardHeadersTomcat() {
 		this.customizer.setEnvironment(new MockEnvironment().withProperty("DYNO", "-"));
 		testRemoteIpValveConfigured();
 	}
@@ -320,7 +366,7 @@ public class DefaultServletWebServerFactoryCustomizerTests {
 	}
 
 	@Test
-	public void customTomcatRemoteIpValve() throws Exception {
+	public void customTomcatRemoteIpValve() {
 		Map<String, String> map = new HashMap<>();
 		map.put("server.tomcat.remote-ip-header", "x-my-remote-ip-header");
 		map.put("server.tomcat.protocol-header", "x-my-protocol-header");
@@ -348,14 +394,14 @@ public class DefaultServletWebServerFactoryCustomizerTests {
 		bindProperties(map);
 		TomcatServletWebServerFactory factory = new TomcatServletWebServerFactory(0);
 		this.customizer.customize(factory);
-		TomcatWebServer embeddedFactory = (TomcatWebServer) factory.getWebServer();
-		embeddedFactory.start();
+		TomcatWebServer server = (TomcatWebServer) factory.getWebServer();
+		server.start();
 		try {
-			assertThat(((AbstractProtocol<?>) embeddedFactory.getTomcat().getConnector()
+			assertThat(((AbstractProtocol<?>) server.getTomcat().getConnector()
 					.getProtocolHandler()).getAcceptCount()).isEqualTo(10);
 		}
 		finally {
-			embeddedFactory.stop();
+			server.stop();
 		}
 	}
 
@@ -366,14 +412,14 @@ public class DefaultServletWebServerFactoryCustomizerTests {
 		bindProperties(map);
 		TomcatServletWebServerFactory factory = new TomcatServletWebServerFactory(0);
 		this.customizer.customize(factory);
-		TomcatWebServer embeddedFactory = (TomcatWebServer) factory.getWebServer();
-		embeddedFactory.start();
+		TomcatWebServer server = (TomcatWebServer) factory.getWebServer();
+		server.start();
 		try {
-			assertThat(((AbstractProtocol<?>) embeddedFactory.getTomcat().getConnector()
+			assertThat(((AbstractProtocol<?>) server.getTomcat().getConnector()
 					.getProtocolHandler()).getMaxConnections()).isEqualTo(5);
 		}
 		finally {
-			embeddedFactory.stop();
+			server.stop();
 		}
 	}
 
@@ -384,14 +430,14 @@ public class DefaultServletWebServerFactoryCustomizerTests {
 		bindProperties(map);
 		TomcatServletWebServerFactory factory = new TomcatServletWebServerFactory(0);
 		this.customizer.customize(factory);
-		TomcatWebServer embeddedFactory = (TomcatWebServer) factory.getWebServer();
-		embeddedFactory.start();
+		TomcatWebServer server = (TomcatWebServer) factory.getWebServer();
+		server.start();
 		try {
-			assertThat(embeddedFactory.getTomcat().getConnector().getMaxPostSize())
+			assertThat(server.getTomcat().getConnector().getMaxPostSize())
 					.isEqualTo(10000);
 		}
 		finally {
-			embeddedFactory.stop();
+			server.stop();
 		}
 	}
 
@@ -402,14 +448,13 @@ public class DefaultServletWebServerFactoryCustomizerTests {
 		bindProperties(map);
 		TomcatServletWebServerFactory factory = new TomcatServletWebServerFactory(0);
 		this.customizer.customize(factory);
-		TomcatWebServer embeddedFactory = (TomcatWebServer) factory.getWebServer();
-		embeddedFactory.start();
+		TomcatWebServer server = (TomcatWebServer) factory.getWebServer();
+		server.start();
 		try {
-			assertThat(embeddedFactory.getTomcat().getConnector().getMaxPostSize())
-					.isEqualTo(-1);
+			assertThat(server.getTomcat().getConnector().getMaxPostSize()).isEqualTo(-1);
 		}
 		finally {
-			embeddedFactory.stop();
+			server.stop();
 		}
 	}
 
@@ -435,7 +480,7 @@ public class DefaultServletWebServerFactoryCustomizerTests {
 	}
 
 	@Test
-	public void testCustomizeTomcatMinSpareThreads() throws Exception {
+	public void testCustomizeTomcatMinSpareThreads() {
 		Map<String, String> map = new HashMap<>();
 		map.put("server.tomcat.min-spare-threads", "10");
 		bindProperties(map);
@@ -468,7 +513,7 @@ public class DefaultServletWebServerFactoryCustomizerTests {
 	}
 
 	@Test
-	public void defaultUseForwardHeadersUndertow() throws Exception {
+	public void defaultUseForwardHeadersUndertow() {
 		UndertowServletWebServerFactory factory = spy(
 				new UndertowServletWebServerFactory());
 		this.customizer.customize(factory);
@@ -476,7 +521,7 @@ public class DefaultServletWebServerFactoryCustomizerTests {
 	}
 
 	@Test
-	public void setUseForwardHeadersUndertow() throws Exception {
+	public void setUseForwardHeadersUndertow() {
 		this.properties.setUseForwardHeaders(true);
 		UndertowServletWebServerFactory factory = spy(
 				new UndertowServletWebServerFactory());
@@ -485,7 +530,7 @@ public class DefaultServletWebServerFactoryCustomizerTests {
 	}
 
 	@Test
-	public void deduceUseForwardHeadersUndertow() throws Exception {
+	public void deduceUseForwardHeadersUndertow() {
 		this.customizer.setEnvironment(new MockEnvironment().withProperty("DYNO", "-"));
 		UndertowServletWebServerFactory factory = spy(
 				new UndertowServletWebServerFactory());
@@ -494,14 +539,14 @@ public class DefaultServletWebServerFactoryCustomizerTests {
 	}
 
 	@Test
-	public void defaultUseForwardHeadersJetty() throws Exception {
+	public void defaultUseForwardHeadersJetty() {
 		JettyServletWebServerFactory factory = spy(new JettyServletWebServerFactory());
 		this.customizer.customize(factory);
 		verify(factory).setUseForwardHeaders(false);
 	}
 
 	@Test
-	public void setUseForwardHeadersJetty() throws Exception {
+	public void setUseForwardHeadersJetty() {
 		this.properties.setUseForwardHeaders(true);
 		JettyServletWebServerFactory factory = spy(new JettyServletWebServerFactory());
 		this.customizer.customize(factory);
@@ -509,7 +554,7 @@ public class DefaultServletWebServerFactoryCustomizerTests {
 	}
 
 	@Test
-	public void deduceUseForwardHeadersJetty() throws Exception {
+	public void deduceUseForwardHeadersJetty() {
 		this.customizer.setEnvironment(new MockEnvironment().withProperty("DYNO", "-"));
 		JettyServletWebServerFactory factory = spy(new JettyServletWebServerFactory());
 		this.customizer.customize(factory);
@@ -517,13 +562,16 @@ public class DefaultServletWebServerFactoryCustomizerTests {
 	}
 
 	@Test
-	public void sessionStoreDir() throws Exception {
+	public void sessionStoreDir() {
 		Map<String, String> map = new HashMap<>();
-		map.put("server.session.store-dir", "myfolder");
+		map.put("server.servlet.session.store-dir", "myfolder");
 		bindProperties(map);
 		JettyServletWebServerFactory factory = spy(new JettyServletWebServerFactory());
 		this.customizer.customize(factory);
-		verify(factory).setSessionStoreDir(new File("myfolder"));
+		ArgumentCaptor<Session> sessionCaptor = ArgumentCaptor.forClass(Session.class);
+		verify(factory).setSession(sessionCaptor.capture());
+		assertThat(sessionCaptor.getValue().getStoreDir())
+				.isEqualTo(new File("myfolder"));
 	}
 
 	@Test
@@ -595,25 +643,29 @@ public class DefaultServletWebServerFactoryCustomizerTests {
 	}
 
 	@Test
-	public void skipNullElementsForUndertow() throws Exception {
+	public void skipNullElementsForUndertow() {
 		UndertowServletWebServerFactory factory = mock(
 				UndertowServletWebServerFactory.class);
 		this.customizer.customize(factory);
 		verify(factory, never()).setAccessLogEnabled(anyBoolean());
 	}
 
-	private void triggerInitializers(ConfigurableServletWebServerFactory factory,
-			ServletContext servletContext) throws ServletException {
-		verify(factory, atLeastOnce()).addInitializers(this.initializersCaptor.capture());
-		for (Object initializers : this.initializersCaptor.getAllValues()) {
-			if (initializers instanceof ServletContextInitializer) {
-				((ServletContextInitializer) initializers).onStartup(servletContext);
-			}
-			else {
-				for (ServletContextInitializer initializer : (ServletContextInitializer[]) initializers) {
-					initializer.onStartup(servletContext);
-				}
-			}
+	@Test
+	public void customTomcatStaticResourceCacheTtl() {
+		Map<String, String> map = new HashMap<>();
+		map.put("server.tomcat.resource.cache-ttl", "10000");
+		bindProperties(map);
+		TomcatServletWebServerFactory factory = new TomcatServletWebServerFactory(0);
+		this.customizer.customize(factory);
+		TomcatWebServer server = (TomcatWebServer) factory.getWebServer();
+		server.start();
+		try {
+			Tomcat tomcat = server.getTomcat();
+			Context context = (Context) tomcat.getHost().findChildren()[0];
+			assertThat(context.getResources().getCacheTtl()).isEqualTo(10000L);
+		}
+		finally {
+			server.stop();
 		}
 	}
 

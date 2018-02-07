@@ -55,6 +55,11 @@ public class ConfigurationPropertiesBindingPostProcessor
 		implements BeanPostProcessor, BeanFactoryAware, EnvironmentAware,
 		ApplicationContextAware, InitializingBean, PriorityOrdered {
 
+	/**
+	 * The bean name of the configuration properties validator.
+	 */
+	public static final String VALIDATOR_BEAN_NAME = "configurationPropertiesValidator";
+
 	private static final Log logger = LogFactory
 			.getLog(ConfigurationPropertiesBindingPostProcessor.class);
 
@@ -118,20 +123,20 @@ public class ConfigurationPropertiesBindingPostProcessor
 					+ "PropertySourcesPlaceholderConfigurer or Environment");
 		}
 		PropertySources appliedPropertySources = configurer.getAppliedPropertySources();
-		return environmentPropertySources == null ? appliedPropertySources
-				: new CompositePropertySources(
-						new FilteredPropertySources(appliedPropertySources,
-								PropertySourcesPlaceholderConfigurer.ENVIRONMENT_PROPERTIES_PROPERTY_SOURCE_NAME),
-						environmentPropertySources);
+		if (environmentPropertySources == null) {
+			return appliedPropertySources;
+		}
+		return new CompositePropertySources(
+				new FilteredPropertySources(appliedPropertySources,
+						PropertySourcesPlaceholderConfigurer.ENVIRONMENT_PROPERTIES_PROPERTY_SOURCE_NAME),
+				environmentPropertySources);
 	}
 
 	private MutablePropertySources extractEnvironmentPropertySources() {
-		MutablePropertySources environmentPropertySources = null;
 		if (this.environment instanceof ConfigurableEnvironment) {
-			environmentPropertySources = ((ConfigurableEnvironment) this.environment)
-					.getPropertySources();
+			return ((ConfigurableEnvironment) this.environment).getPropertySources();
 		}
-		return environmentPropertySources;
+		return null;
 	}
 
 	private PropertySourcesPlaceholderConfigurer getSinglePropertySourcesPlaceholderConfigurer() {

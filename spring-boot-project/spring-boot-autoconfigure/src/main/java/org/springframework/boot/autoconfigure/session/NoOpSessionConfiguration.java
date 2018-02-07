@@ -28,7 +28,7 @@ import org.springframework.session.SessionRepository;
  */
 @Configuration
 @ConditionalOnMissingBean(SessionRepository.class)
-@Conditional(SessionCondition.class)
+@Conditional(ServletSessionCondition.class)
 class NoOpSessionConfiguration {
 
 }

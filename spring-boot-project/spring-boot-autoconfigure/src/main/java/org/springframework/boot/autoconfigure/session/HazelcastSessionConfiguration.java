@@ -16,6 +16,8 @@
 
 package org.springframework.boot.autoconfigure.session;
 
+import java.time.Duration;
+
 import com.hazelcast.core.HazelcastInstance;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,7 +43,7 @@ import org.springframework.session.hazelcast.config.annotation.web.http.Hazelcas
 @ConditionalOnClass(HazelcastSessionRepository.class)
 @ConditionalOnMissingBean(SessionRepository.class)
 @ConditionalOnBean(HazelcastInstance.class)
-@Conditional(SessionCondition.class)
+@Conditional(ServletSessionCondition.class)
 @EnableConfigurationProperties(HazelcastSessionProperties.class)
 class HazelcastSessionConfiguration {
 
@@ -52,9 +54,9 @@ class HazelcastSessionConfiguration {
 		@Autowired
 		public void customize(SessionProperties sessionProperties,
 				HazelcastSessionProperties hazelcastSessionProperties) {
-			Integer timeout = sessionProperties.getTimeout();
+			Duration timeout = sessionProperties.getTimeout();
 			if (timeout != null) {
-				setMaxInactiveIntervalInSeconds(timeout);
+				setMaxInactiveIntervalInSeconds((int) timeout.getSeconds());
 			}
 			setSessionMapName(hazelcastSessionProperties.getMapName());
 			setHazelcastFlushMode(hazelcastSessionProperties.getFlushMode());

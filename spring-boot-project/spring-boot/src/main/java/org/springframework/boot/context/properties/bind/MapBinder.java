@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import org.springframework.boot.context.properties.source.ConfigurationProperty;
 import org.springframework.boot.context.properties.source.ConfigurationPropertyName;
 import org.springframework.boot.context.properties.source.ConfigurationPropertyName.Form;
 import org.springframework.boot.context.properties.source.ConfigurationPropertySource;
+import org.springframework.boot.context.properties.source.ConfigurationPropertyState;
 import org.springframework.boot.context.properties.source.IterableConfigurationPropertySource;
 import org.springframework.core.CollectionFactory;
 import org.springframework.core.ResolvableType;
@@ -45,13 +46,27 @@ class MapBinder extends AggregateBinder<Map<Object, Object>> {
 	}
 
 	@Override
+	protected boolean isAllowRecursiveBinding(ConfigurationPropertySource source) {
+		return true;
+	}
+
+	@Override
 	protected Object bindAggregate(ConfigurationPropertyName name, Bindable<?> target,
 			AggregateElementBinder elementBinder) {
 		Map<Object, Object> map = CollectionFactory.createMap(
 				(target.getValue() == null ? target.getType().resolve() : Map.class), 0);
 		Bindable<?> resolvedTarget = resolveTarget(target);
+		boolean hasDescendants = getContext().streamSources().anyMatch((source) -> source
+				.containsDescendantOf(name) == ConfigurationPropertyState.PRESENT);
 		for (ConfigurationPropertySource source : getContext().getSources()) {
 			if (!ConfigurationPropertyName.EMPTY.equals(name)) {
+				ConfigurationProperty property = source.getConfigurationProperty(name);
+				if (property != null && !hasDescendants) {
+					Object value = getContext().getPlaceholdersResolver()
+							.resolvePlaceholders(property.getValue());
+					return ResolvableTypeDescriptor.forType(target.getType())
+							.convert(getContext().getConversionService(), value);
+				}
 				source = source.filter(name::isAncestorOf);
 			}
 			new EntryBinder(name, resolvedTarget, elementBinder).bindEntries(source, map);
