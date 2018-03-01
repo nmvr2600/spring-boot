@@ -39,6 +39,7 @@ import org.springframework.boot.loader.tools.BuildPropertiesWriter.ProjectDetail
  * {@code Project}.
  *
  * @author Andy Wilkinson
+ * @since 2.0.0
  */
 public class BuildInfo extends ConventionTask {
 
@@ -57,10 +58,12 @@ public class BuildInfo extends ConventionTask {
 					new File(getDestinationDir(), "build-info.properties"))
 							.writeBuildProperties(new ProjectDetails(
 									this.properties.getGroup(),
-									this.properties.getArtifact() == null ? "unspecified"
+									this.properties.getArtifact() == null
+											? "unspecified"
 											: this.properties.getArtifact(),
 									this.properties.getVersion(),
-									this.properties.getName(), coerceToStringValues(
+									this.properties.getName(), this.properties.getTime(),
+									coerceToStringValues(
 											this.properties.getAdditional())));
 		}
 		catch (IOException ex) {
@@ -71,7 +74,6 @@ public class BuildInfo extends ConventionTask {
 	/**
 	 * Returns the directory to which the {@code build-info.properties} file will be
 	 * written. Defaults to the {@link Project#getBuildDir() Project's build directory}.
-	 *
 	 * @return the destination directory
 	 */
 	@OutputDirectory

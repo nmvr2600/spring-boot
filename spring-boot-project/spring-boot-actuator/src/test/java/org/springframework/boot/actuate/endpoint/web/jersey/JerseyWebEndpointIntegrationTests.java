@@ -17,7 +17,7 @@
 package org.springframework.boot.actuate.endpoint.web.jersey;
 
 import java.io.IOException;
-import java.security.Principal;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 
@@ -25,7 +25,6 @@ import javax.servlet.Filter;
 import javax.servlet.FilterChain;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletRequestWrapper;
 import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.ext.ContextResolver;
 
@@ -35,18 +34,23 @@ import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.server.model.Resource;
 import org.glassfish.jersey.servlet.ServletContainer;
 
+import org.springframework.boot.actuate.endpoint.web.EndpointLinksResolver;
+import org.springframework.boot.actuate.endpoint.web.EndpointMapping;
 import org.springframework.boot.actuate.endpoint.web.EndpointMediaTypes;
 import org.springframework.boot.actuate.endpoint.web.annotation.AbstractWebEndpointIntegrationTests;
 import org.springframework.boot.actuate.endpoint.web.annotation.WebEndpointDiscoverer;
-import org.springframework.boot.endpoint.web.EndpointMapping;
 import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory;
 import org.springframework.boot.web.servlet.ServletRegistrationBean;
 import org.springframework.boot.web.servlet.context.AnnotationConfigServletWebServerApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestWrapper;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -60,15 +64,19 @@ public class JerseyWebEndpointIntegrationTests extends
 		AbstractWebEndpointIntegrationTests<AnnotationConfigServletWebServerApplicationContext> {
 
 	public JerseyWebEndpointIntegrationTests() {
-		super(JerseyConfiguration.class);
+		super(JerseyWebEndpointIntegrationTests::createApplicationContext,
+				JerseyWebEndpointIntegrationTests::applyAuthenticatedConfiguration);
 	}
 
-	@Override
-	protected AnnotationConfigServletWebServerApplicationContext createApplicationContext(
-			Class<?>... config) {
+	private static AnnotationConfigServletWebServerApplicationContext createApplicationContext() {
 		AnnotationConfigServletWebServerApplicationContext context = new AnnotationConfigServletWebServerApplicationContext();
-		context.register(config);
+		context.register(JerseyConfiguration.class);
 		return context;
+	}
+
+	private static void applyAuthenticatedConfiguration(
+			AnnotationConfigServletWebServerApplicationContext context) {
+		context.register(AuthenticatedConfiguration.class);
 	}
 
 	@Override
@@ -80,11 +88,6 @@ public class JerseyWebEndpointIntegrationTests extends
 	protected void validateErrorBody(WebTestClient.BodyContentSpec body,
 			HttpStatus status, String path, String message) {
 		// Jersey doesn't support the general error page handling
-	}
-
-	@Override
-	protected Class<?> getSecuredPrincipalEndpointConfiguration() {
-		return SecuredPrincipalEndpointConfiguration.class;
 	}
 
 	@Configuration
@@ -110,7 +113,8 @@ public class JerseyWebEndpointIntegrationTests extends
 			Collection<Resource> resources = new JerseyEndpointResourceFactory()
 					.createEndpointResources(
 							new EndpointMapping(environment.getProperty("endpointPath")),
-							endpointDiscoverer.getEndpoints(), endpointMediaTypes);
+							endpointDiscoverer.getEndpoints(), endpointMediaTypes,
+							new EndpointLinksResolver(endpointDiscoverer.getEndpoints()));
 			resourceConfig.registerResources(new HashSet<>(resources));
 			resourceConfig.register(JacksonFeature.class);
 			resourceConfig.register(new ObjectMapperContextResolver(new ObjectMapper()),
@@ -121,8 +125,7 @@ public class JerseyWebEndpointIntegrationTests extends
 	}
 
 	@Configuration
-	@Import(PrincipalEndpointConfiguration.class)
-	static class SecuredPrincipalEndpointConfiguration {
+	static class AuthenticatedConfiguration {
 
 		@Bean
 		public Filter securityFilter() {
@@ -131,28 +134,22 @@ public class JerseyWebEndpointIntegrationTests extends
 				@Override
 				protected void doFilterInternal(HttpServletRequest request,
 						HttpServletResponse response, FilterChain filterChain)
-								throws ServletException, IOException {
-					filterChain.doFilter(new HttpServletRequestWrapper(request) {
-
-						@Override
-						public Principal getUserPrincipal() {
-
-							return new Principal() {
-
-								@Override
-								public String getName() {
-									return "Alice";
-								}
-
-							};
-
-						}
-
-					}, response);
+						throws ServletException, IOException {
+					SecurityContext context = SecurityContextHolder.createEmptyContext();
+					context.setAuthentication(new UsernamePasswordAuthenticationToken(
+							"Alice", "secret",
+							Arrays.asList(new SimpleGrantedAuthority("ROLE_ACTUATOR"))));
+					SecurityContextHolder.setContext(context);
+					try {
+						filterChain.doFilter(new SecurityContextHolderAwareRequestWrapper(
+								request, "ROLE_"), response);
+					}
+					finally {
+						SecurityContextHolder.clearContext();
+					}
 				}
 
 			};
-
 		}
 
 	}

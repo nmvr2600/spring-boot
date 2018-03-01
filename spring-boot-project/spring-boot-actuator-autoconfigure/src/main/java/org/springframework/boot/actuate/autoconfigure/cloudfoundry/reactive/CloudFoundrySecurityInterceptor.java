@@ -16,6 +16,8 @@
 
 package org.springframework.boot.actuate.autoconfigure.cloudfoundry.reactive;
 
+import java.util.Locale;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import reactor.core.publisher.Mono;
@@ -46,7 +48,8 @@ class CloudFoundrySecurityInterceptor {
 
 	private final String applicationId;
 
-	private static Mono<SecurityResponse> SUCCESS = Mono.just(SecurityResponse.success());
+	private static final Mono<SecurityResponse> SUCCESS = Mono
+			.just(SecurityResponse.success());
 
 	CloudFoundrySecurityInterceptor(ReactiveTokenValidator tokenValidator,
 			ReactiveCloudFoundrySecurityService cloudFoundrySecurityService,
@@ -109,7 +112,7 @@ class CloudFoundrySecurityInterceptor {
 		String authorization = request.getHeaders().getFirst("Authorization");
 		String bearerPrefix = "bearer ";
 		if (authorization == null
-				|| !authorization.toLowerCase().startsWith(bearerPrefix)) {
+				|| !authorization.toLowerCase(Locale.ENGLISH).startsWith(bearerPrefix)) {
 			throw new CloudFoundryAuthorizationException(Reason.MISSING_AUTHORIZATION,
 					"Authorization header is missing or invalid");
 		}

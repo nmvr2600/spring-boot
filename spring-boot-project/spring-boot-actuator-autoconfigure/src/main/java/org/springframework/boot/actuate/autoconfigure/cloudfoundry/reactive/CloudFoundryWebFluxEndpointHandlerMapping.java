@@ -28,12 +28,12 @@ import reactor.core.publisher.Mono;
 import org.springframework.boot.actuate.autoconfigure.cloudfoundry.AccessLevel;
 import org.springframework.boot.actuate.autoconfigure.cloudfoundry.SecurityResponse;
 import org.springframework.boot.actuate.endpoint.web.EndpointLinksResolver;
+import org.springframework.boot.actuate.endpoint.web.EndpointMapping;
 import org.springframework.boot.actuate.endpoint.web.EndpointMediaTypes;
 import org.springframework.boot.actuate.endpoint.web.ExposableWebEndpoint;
 import org.springframework.boot.actuate.endpoint.web.Link;
 import org.springframework.boot.actuate.endpoint.web.WebOperation;
 import org.springframework.boot.actuate.endpoint.web.reactive.AbstractWebFluxEndpointHandlerMapping;
-import org.springframework.boot.endpoint.web.EndpointMapping;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -54,13 +54,15 @@ class CloudFoundryWebFluxEndpointHandlerMapping
 
 	private final CloudFoundrySecurityInterceptor securityInterceptor;
 
-	private final EndpointLinksResolver linksResolver = new EndpointLinksResolver();
+	private final EndpointLinksResolver linksResolver;
 
 	CloudFoundryWebFluxEndpointHandlerMapping(EndpointMapping endpointMapping,
 			Collection<ExposableWebEndpoint> endpoints,
 			EndpointMediaTypes endpointMediaTypes, CorsConfiguration corsConfiguration,
-			CloudFoundrySecurityInterceptor securityInterceptor) {
+			CloudFoundrySecurityInterceptor securityInterceptor,
+			EndpointLinksResolver linksResolver) {
 		super(endpointMapping, endpoints, endpointMediaTypes, corsConfiguration);
+		this.linksResolver = linksResolver;
 		this.securityInterceptor = securityInterceptor;
 	}
 
@@ -83,7 +85,7 @@ class CloudFoundryWebFluxEndpointHandlerMapping
 					AccessLevel accessLevel = exchange
 							.getAttribute(AccessLevel.REQUEST_ATTRIBUTE);
 					Map<String, Link> links = this.linksResolver
-							.resolveLinks(getEndpoints(), request.getURI().toString());
+							.resolveLinks(request.getURI().toString());
 					return new ResponseEntity<>(
 							Collections.singletonMap("_links",
 									getAccessibleLinks(accessLevel, links)),

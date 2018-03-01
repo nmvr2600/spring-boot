@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
@@ -229,7 +230,6 @@ public class SysVinitLaunchScriptIT {
 	@Test
 	public void pidFolderOwnership() throws Exception {
 		String output = doTest("pid-folder-ownership.sh");
-		System.err.println(output);
 		assertThat(output).contains("phil root");
 	}
 
@@ -243,6 +243,18 @@ public class SysVinitLaunchScriptIT {
 	public void logFileOwnership() throws Exception {
 		String output = doTest("log-file-ownership.sh");
 		assertThat(output).contains("phil root");
+	}
+
+	@Test
+	public void logFileOwnershipIsChangedWhenCreated() throws Exception {
+		String output = doTest("log-file-ownership-is-changed-when-created.sh");
+		assertThat(output).contains("andy root");
+	}
+
+	@Test
+	public void logFileOwnershipIsUnchangedWhenExists() throws Exception {
+		String output = doTest("log-file-ownership-is-unchanged-when-exists.sh");
+		assertThat(output).contains("root root");
 	}
 
 	@Test
@@ -301,7 +313,8 @@ public class SysVinitLaunchScriptIT {
 	private String buildImage(DockerClient docker) {
 		String dockerfile = "src/test/resources/conf/" + this.os + "/" + this.version
 				+ "/Dockerfile";
-		String tag = "spring-boot-it/" + this.os.toLowerCase() + ":" + this.version;
+		String tag = "spring-boot-it/" + this.os.toLowerCase(Locale.ENGLISH) + ":"
+				+ this.version;
 		BuildImageResultCallback resultCallback = new BuildImageResultCallback() {
 
 			private List<BuildResponseItem> items = new ArrayList<>();

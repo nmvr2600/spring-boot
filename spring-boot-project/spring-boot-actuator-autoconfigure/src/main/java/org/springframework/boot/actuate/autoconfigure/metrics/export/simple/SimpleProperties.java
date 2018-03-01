@@ -28,33 +28,21 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * {@link SimpleMeterRegistry}.
  *
  * @author Jon Schneider
+ * @author Stephane Nicoll
  * @since 2.0.0
  */
 @ConfigurationProperties(prefix = "management.metrics.export.simple")
 public class SimpleProperties {
 
 	/**
-	 * Enable publishing to the backend.
-	 */
-	private boolean enabled;
-
-	/**
 	 * Step size (i.e. reporting frequency) to use.
 	 */
-	private Duration step = Duration.ofSeconds(10);
+	private Duration step = Duration.ofMinutes(1);
 
 	/**
 	 * Counting mode.
 	 */
 	private CountingMode mode = CountingMode.CUMULATIVE;
-
-	public boolean getEnabled() {
-		return this.enabled;
-	}
-
-	public void setEnabled(boolean enabled) {
-		this.enabled = enabled;
-	}
 
 	public Duration getStep() {
 		return this.step;

@@ -136,7 +136,7 @@ Spring Boot includes a `.setup` files which can be used with the Eclipse Install
 provision a new environment. To use the installer:
 
 * Download and run the latest Eclipse Installer from
-  http://www.eclipse.org/downloads/[eclipse.org/downloads/].
+  http://www.eclipse.org/downloads/[eclipse.org/downloads/] (under "Get Eclipse").
 * Switch to "Advanced Mode" using the drop down menu on the right.
 * Select "`Eclipse IDE for Java Developers`" under "`Eclipse.org`" as the product to
   install and click "`next`".
@@ -209,3 +209,12 @@ they cannot be called directly, and so instead are launched via the
 `maven-invoker-plugin`. If you encounter build failures running the integration tests,
 check the `build.log` file in the appropriate sample directory.
 
+
+== Cloning the git repository on Windows
+Some files in the git repository may exceed the Windows maximum file path (260
+characters), depending on where you clone the repository. If you get `Filename too long`
+errors, set the `core.longPaths=true` git option:
+
+```
+git clone -c core.longPaths=true https://github.com/spring-projects/spring-boot
+```

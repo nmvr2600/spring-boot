@@ -113,7 +113,7 @@ public class EmbeddedLdapAutoConfiguration {
 
 	@Bean
 	public InMemoryDirectoryServer directoryServer() throws LDAPException {
-		String[] baseDn = this.embeddedProperties.getBaseDn().toArray(new String[0]);
+		String[] baseDn = StringUtils.toStringArray(this.embeddedProperties.getBaseDn());
 		InMemoryDirectoryServerConfig config = new InMemoryDirectoryServerConfig(baseDn);
 		if (hasCredentials(this.embeddedProperties.getCredential())) {
 			config.addAdditionalBindCredentials(
@@ -218,13 +218,10 @@ public class EmbeddedLdapAutoConfiguration {
 				AnnotatedTypeMetadata metadata) {
 			Builder message = ConditionMessage.forCondition("Embedded LDAP");
 			Environment environment = context.getEnvironment();
-			if (environment != null) {
-				if (!Binder.get(environment)
-						.bind("spring.ldap.embedded.base-dn", STRING_LIST)
-						.orElseGet(Collections::emptyList).isEmpty()) {
-					return ConditionOutcome
-							.match(message.because("Found base-dn property"));
-				}
+			if (environment != null && !Binder.get(environment)
+					.bind("spring.ldap.embedded.base-dn", STRING_LIST)
+					.orElseGet(Collections::emptyList).isEmpty()) {
+				return ConditionOutcome.match(message.because("Found base-dn property"));
 			}
 			return ConditionOutcome.noMatch(message.because("No base-dn property found"));
 		}

@@ -31,7 +31,7 @@ import java.util.TimeZone;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
-import org.springframework.boot.context.properties.bind.convert.DefaultDurationUnit;
+import org.springframework.boot.convert.DurationUnit;
 import org.springframework.boot.web.server.Compression;
 import org.springframework.boot.web.server.Http2;
 import org.springframework.boot.web.server.Ssl;
@@ -67,11 +67,6 @@ public class ServerProperties {
 	 * Network address to which the server should bind.
 	 */
 	private InetAddress address;
-
-	/**
-	 * Display name of the application.
-	 */
-	private String displayName = "application";
 
 	@NestedConfigurationProperty
 	private final ErrorProperties error = new ErrorProperties();
@@ -129,14 +124,6 @@ public class ServerProperties {
 
 	public void setAddress(InetAddress address) {
 		this.address = address;
-	}
-
-	public String getDisplayName() {
-		return this.displayName;
-	}
-
-	public void setDisplayName(String displayName) {
-		this.displayName = displayName;
 	}
 
 	public Boolean isUseForwardHeaders() {
@@ -223,6 +210,11 @@ public class ServerProperties {
 		private String contextPath;
 
 		/**
+		 * Display name of the application.
+		 */
+		private String applicationDisplayName = "application";
+
+		/**
 		 * Path of the main dispatcher servlet.
 		 */
 		private String path = "/";
@@ -246,6 +238,14 @@ public class ServerProperties {
 				return contextPath.substring(0, contextPath.length() - 1);
 			}
 			return contextPath;
+		}
+
+		public String getApplicationDisplayName() {
+			return this.applicationDisplayName;
+		}
+
+		public void setApplicationDisplayName(String displayName) {
+			this.applicationDisplayName = displayName;
 		}
 
 		public String getPath() {
@@ -333,7 +333,7 @@ public class ServerProperties {
 		private final Accesslog accesslog = new Accesslog();
 
 		/**
-		 * Regular expression that matches proxies that are to be trusted.
+		 * Regular expression matching trusted IP addresses.
 		 */
 		private String internalProxies = "10\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}|" // 10/8
 				+ "192\\.168\\.\\d{1,3}\\.\\d{1,3}|" // 192.168/16
@@ -360,12 +360,12 @@ public class ServerProperties {
 
 		/**
 		 * Name of the HTTP header from which the remote IP is extracted. For instance,
-		 * 'X-FORWARDED-FOR'.
+		 * `X-FORWARDED-FOR`.
 		 */
 		private String remoteIpHeader;
 
 		/**
-		 * Tomcat base directory. If not specified, a temporary directory will be used.
+		 * Tomcat base directory. If not specified, a temporary directory is used.
 		 */
 		private File basedir;
 
@@ -373,7 +373,7 @@ public class ServerProperties {
 		 * Delay between the invocation of backgroundProcess methods. If a duration suffix
 		 * is not specified, seconds will be used.
 		 */
-		@DefaultDurationUnit(ChronoUnit.SECONDS)
+		@DurationUnit(ChronoUnit.SECONDS)
 		private Duration backgroundProcessorDelay = Duration.ofSeconds(30);
 
 		/**
@@ -1058,7 +1058,7 @@ public class ServerProperties {
 			/**
 			 * Whether to enable the access log.
 			 */
-			private Boolean enabled;
+			private boolean enabled = false;
 
 			/**
 			 * Format pattern for access logs.
@@ -1085,11 +1085,11 @@ public class ServerProperties {
 			 */
 			private boolean rotate = true;
 
-			public Boolean getEnabled() {
+			public boolean isEnabled() {
 				return this.enabled;
 			}
 
-			public void setEnabled(Boolean enabled) {
+			public void setEnabled(boolean enabled) {
 				this.enabled = enabled;
 			}
 

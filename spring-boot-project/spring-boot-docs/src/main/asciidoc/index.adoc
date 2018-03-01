@@ -15,6 +15,7 @@ Phillip Webb; Dave Syer; Josh Long; Stéphane Nicoll; Rob Winch; Andy Wilkinson;
 :github-repo: spring-projects/spring-boot
 :github-raw: https://raw.github.com/{github-repo}/{github-tag}
 :github-code: https://github.com/{github-repo}/tree/{github-tag}
+:github-issues: https://github.com/{github-repo}/issues/
 :github-wiki: https://github.com/{github-repo}/wiki
 :github-master-code: https://github.com/{github-repo}/tree/master
 :sc-ext: java
@@ -35,6 +36,7 @@ Phillip Webb; Dave Syer; Josh Long; Stéphane Nicoll; Rob Winch; Andy Wilkinson;
 :dc-spring-boot-test-autoconfigure: {dc-root}/org/springframework/boot/test/autoconfigure
 :dependency-management-plugin: https://github.com/spring-gradle-plugins/dependency-management-plugin
 :dependency-management-plugin-documentation: {dependency-management-plugin}/blob/master/README.md
+:java-javadoc: https://docs.oracle.com/javase/8/docs/api/
 :spring-boot-actuator-api: https://docs.spring.io/spring-boot/docs/{spring-boot-docs-version}/actuator-api/
 :spring-boot-maven-plugin-site: https://docs.spring.io/spring-boot/docs/{spring-boot-docs-version}/maven-plugin
 :spring-boot-gradle-plugin: https://docs.spring.io/spring-boot/docs/{spring-boot-docs-version}/gradle-plugin
@@ -61,13 +63,16 @@ Phillip Webb; Dave Syer; Josh Long; Stéphane Nicoll; Rob Winch; Andy Wilkinson;
 :gradle-userguide: https://www.gradle.org/docs/current/userguide
 :propdeps-plugin: https://github.com/spring-projects/gradle-plugins/tree/master/propdeps-plugin
 :ant-manual: http://ant.apache.org/manual
-:code-examples: ../java/org/springframework/boot
-:test-examples: ../../test/java/org/springframework/boot
+:code-examples: ../java/org/springframework/boot/docs
+:test-examples: ../../test/java/org/springframework/boot/docs
 :gradle-user-guide: https://docs.gradle.org/4.2.1/userguide
 :hibernate-documentation: https://docs.jboss.org/hibernate/orm/5.2/userguide/html_single/Hibernate_User_Guide.html
 :jetty-documentation: https://www.eclipse.org/jetty/documentation/9.4.x
 :micrometer-concepts-documentation: https://micrometer.io/docs/concepts
+:micrometer-registry-documentation: http://micrometer.io/docs/registry
 :tomcat-documentation: https://tomcat.apache.org/tomcat-8.5-doc
+:kotlin-documentation: https://kotlinlang.org/docs/reference/
+:junit5-documentation: https://junit.org/junit5/docs/current/user-guide
 // ======================================================================================
 
 include::documentation-overview.adoc[]

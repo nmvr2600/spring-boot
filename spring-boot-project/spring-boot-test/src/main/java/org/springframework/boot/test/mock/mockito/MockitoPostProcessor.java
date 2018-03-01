@@ -279,7 +279,7 @@ public class MockitoPostProcessor extends InstantiationAwareBeanPostProcessorAda
 			}
 		}
 		beans.removeIf(this::isScopedTarget);
-		return beans.toArray(new String[beans.size()]);
+		return StringUtils.toStringArray(beans);
 	}
 
 	private boolean isScopedTarget(String beanName) {
@@ -363,7 +363,7 @@ public class MockitoPostProcessor extends InstantiationAwareBeanPostProcessorAda
 	@Override
 	public PropertyValues postProcessPropertyValues(PropertyValues pvs,
 			PropertyDescriptor[] pds, final Object bean, String beanName)
-					throws BeansException {
+			throws BeansException {
 		ReflectionUtils.doWithFields(bean.getClass(),
 				(field) -> postProcessField(bean, field));
 		return pvs;

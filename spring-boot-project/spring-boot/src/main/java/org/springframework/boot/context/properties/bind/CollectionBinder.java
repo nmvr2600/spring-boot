@@ -19,6 +19,7 @@ package org.springframework.boot.context.properties.bind;
 import java.util.Collection;
 import java.util.List;
 
+import org.springframework.boot.context.properties.bind.Binder.Context;
 import org.springframework.boot.context.properties.source.ConfigurationPropertyName;
 import org.springframework.core.CollectionFactory;
 import org.springframework.core.ResolvableType;
@@ -31,16 +32,16 @@ import org.springframework.core.ResolvableType;
  */
 class CollectionBinder extends IndexedElementsBinder<Collection<Object>> {
 
-	CollectionBinder(BindContext context) {
+	CollectionBinder(Context context) {
 		super(context);
 	}
 
 	@Override
 	protected Object bindAggregate(ConfigurationPropertyName name, Bindable<?> target,
 			AggregateElementBinder elementBinder) {
-		Class<?> collectionType = (target.getValue() == null ? target.getType().resolve()
-				: List.class);
-		ResolvableType aggregateType = forClassWithGenerics(List.class,
+		Class<?> collectionType = (target.getValue() == null
+				? target.getType().resolve(Object.class) : List.class);
+		ResolvableType aggregateType = ResolvableType.forClassWithGenerics(List.class,
 				target.getType().asCollection().getGenerics());
 		ResolvableType elementType = target.getType().asCollection().getGeneric();
 		IndexedCollectionSupplier result = new IndexedCollectionSupplier(

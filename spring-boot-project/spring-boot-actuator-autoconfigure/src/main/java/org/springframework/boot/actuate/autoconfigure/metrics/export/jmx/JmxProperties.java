@@ -24,6 +24,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * {@link ConfigurationProperties} for configuring JMX metrics export.
  *
  * @author Jon Schneider
+ * @author Stephane Nicoll
  * @since 2.0.0
  */
 @ConfigurationProperties(prefix = "management.metrics.export.jmx")
@@ -32,7 +33,7 @@ public class JmxProperties {
 	/**
 	 * Step size (i.e. reporting frequency) to use.
 	 */
-	private Duration step;
+	private Duration step = Duration.ofMinutes(1);
 
 	public Duration getStep() {
 		return this.step;

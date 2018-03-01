@@ -47,7 +47,7 @@ import org.apache.commons.compress.archivers.jar.JarArchiveOutputStream;
 import org.apache.commons.compress.archivers.zip.UnixStat;
 
 /**
- * Writes JAR content, ensuring valid directory entries are always create and duplicate
+ * Writes JAR content, ensuring valid directory entries are always created and duplicate
  * items are ignored.
  *
  * @author Phillip Webb
@@ -247,8 +247,8 @@ public class JarWriter implements LoaderClassesWriter, AutoCloseable {
 	}
 
 	/**
-	 * Perform the actual write of a {@link JarEntry}. All other {@code write} methods
-	 * delegate to this one.
+	 * Perform the actual write of a {@link JarEntry}. All other write methods delegate to
+	 * this one.
 	 * @param entry the entry to write
 	 * @param entryWriter the entry writer or {@code null} if there is no content
 	 * @param unpackHandler handles possible unpacking for the entry

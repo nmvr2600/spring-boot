@@ -802,6 +802,21 @@ public abstract class AbstractServletWebServerFactoryTests {
 	}
 
 	@Test
+	public void sslSessionTracking() {
+		AbstractServletWebServerFactory factory = getFactory();
+		Ssl ssl = new Ssl();
+		ssl.setEnabled(true);
+		ssl.setKeyStore("src/test/resources/test.jks");
+		ssl.setKeyPassword("password");
+		factory.setSsl(ssl);
+		factory.getSession().setTrackingModes(EnumSet.of(SessionTrackingMode.SSL));
+		AtomicReference<ServletContext> contextReference = new AtomicReference<>();
+		this.webServer = factory.getWebServer(contextReference::set);
+		assertThat(contextReference.get().getEffectiveSessionTrackingModes())
+				.isEqualTo(EnumSet.of(javax.servlet.SessionTrackingMode.SSL));
+	}
+
+	@Test
 	public void compressionOfResponseToGetRequest() throws Exception {
 		assertThat(doTestCompression(10000, null, null)).isTrue();
 	}
@@ -967,7 +982,7 @@ public abstract class AbstractServletWebServerFactoryTests {
 		JspServlet jspServlet = getJspServlet();
 		EmbeddedServletOptions options = (EmbeddedServletOptions) ReflectionTestUtils
 				.getField(jspServlet, "options");
-		assertThat(options.getDevelopment()).isEqualTo(false);
+		assertThat(options.getDevelopment()).isFalse();
 	}
 
 	@Test
@@ -1129,13 +1144,13 @@ public abstract class AbstractServletWebServerFactoryTests {
 
 	protected String getResponse(String url,
 			HttpComponentsClientHttpRequestFactory requestFactory, String... headers)
-					throws IOException, URISyntaxException {
+			throws IOException, URISyntaxException {
 		return getResponse(url, HttpMethod.GET, requestFactory, headers);
 	}
 
 	protected String getResponse(String url, HttpMethod method,
 			HttpComponentsClientHttpRequestFactory requestFactory, String... headers)
-					throws IOException, URISyntaxException {
+			throws IOException, URISyntaxException {
 		try (ClientHttpResponse response = getClientResponse(url, method, requestFactory,
 				headers)) {
 			return StreamUtils.copyToString(response.getBody(), StandardCharsets.UTF_8);
@@ -1163,7 +1178,7 @@ public abstract class AbstractServletWebServerFactoryTests {
 
 	protected ClientHttpResponse getClientResponse(String url, HttpMethod method,
 			HttpComponentsClientHttpRequestFactory requestFactory, String... headers)
-					throws IOException, URISyntaxException {
+			throws IOException, URISyntaxException {
 		ClientHttpRequest request = requestFactory.createRequest(new URI(url), method);
 		request.getHeaders().add("Cookie", "JSESSIONID=" + "123");
 		for (String header : headers) {

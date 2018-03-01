@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package org.springframework.boot.context.properties.bind;
 
+import java.beans.PropertyEditorSupport;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -161,6 +162,16 @@ public class BinderTests {
 	}
 
 	@Test
+	public void bindToValueWithCustomPropertyEditorShouldReturnConvertedValue() {
+		this.binder = new Binder(this.sources, null, null, (registry) -> registry
+				.registerCustomEditor(JavaBean.class, new JavaBeanPropertyEditor()));
+		this.sources.add(new MockConfigurationPropertySource("foo", "123"));
+		BindResult<JavaBean> result = this.binder.bind("foo",
+				Bindable.of(JavaBean.class));
+		assertThat(result.get().getValue()).isEqualTo("123");
+	}
+
+	@Test
 	public void bindToValueShouldTriggerOnSuccess() {
 		this.sources.add(new MockConfigurationPropertySource("foo", "1", "line1"));
 		BindHandler handler = mock(BindHandler.class,
@@ -280,6 +291,16 @@ public class BinderTests {
 		this.binder.bind("foo", target);
 	}
 
+	@Test
+	@SuppressWarnings("rawtypes")
+	public void bindToBeanWithUnresolvableGenerics() {
+		MockConfigurationPropertySource source = new MockConfigurationPropertySource();
+		source.put("foo.bar", "hello");
+		this.sources.add(source);
+		Bindable<GenericBean> target = Bindable.of(GenericBean.class);
+		this.binder.bind("foo", target);
+	}
+
 	public static class JavaBean {
 
 		private String value;
@@ -345,6 +366,31 @@ public class BinderTests {
 
 		public void setOne(CycleBean1 one) {
 			this.one = one;
+		}
+
+	}
+
+	public static class GenericBean<T> {
+
+		private T bar;
+
+		public T getBar() {
+			return this.bar;
+		}
+
+		public void setBar(T bar) {
+			this.bar = bar;
+		}
+
+	}
+
+	public static class JavaBeanPropertyEditor extends PropertyEditorSupport {
+
+		@Override
+		public void setAsText(String text) throws IllegalArgumentException {
+			JavaBean value = new JavaBean();
+			value.setValue(text);
+			setValue(value);
 		}
 
 	}

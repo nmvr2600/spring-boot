@@ -25,7 +25,7 @@ import java.util.Map;
 
 import javax.servlet.http.HttpServletRequest;
 
-import org.springframework.boot.actuate.web.trace.TraceableRequest;
+import org.springframework.boot.actuate.trace.http.TraceableRequest;
 import org.springframework.util.StringUtils;
 
 /**
@@ -77,7 +77,7 @@ final class TraceableHttpServletRequest implements TraceableRequest {
 	}
 
 	private List<String> toList(Enumeration<String> enumeration) {
-		List<String> list = new ArrayList<String>();
+		List<String> list = new ArrayList<>();
 		while (enumeration.hasMoreElements()) {
 			list.add(enumeration.nextElement());
 		}

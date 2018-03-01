@@ -49,9 +49,8 @@ public final class LambdaSafe {
 
 	static {
 		CLASS_GET_MODULE = ReflectionUtils.findMethod(Class.class, "getModule");
-		MODULE_GET_NAME = (CLASS_GET_MODULE == null ? null
-				: ReflectionUtils.findMethod(CLASS_GET_MODULE.getReturnType(),
-						"getName"));
+		MODULE_GET_NAME = (CLASS_GET_MODULE == null ? null : ReflectionUtils
+				.findMethod(CLASS_GET_MODULE.getReturnType(), "getName"));
 	}
 
 	private LambdaSafe() {
@@ -111,7 +110,7 @@ public final class LambdaSafe {
 
 		private Log logger;
 
-		private Filter<C, A> filter = new GenericTypeFilter<C, A>();
+		private Filter<C, A> filter = new GenericTypeFilter<>();
 
 		protected LambdaSafeCallback(Class<C> callbackType, A argument,
 				Object[] additionalArguments) {
@@ -371,7 +370,7 @@ public final class LambdaSafe {
 	 * {@code null} as a valid value.
 	 * @param <R> The result type
 	 */
-	public final static class InvocationResult<R> {
+	public static final class InvocationResult<R> {
 
 		private static final InvocationResult<?> NONE = new InvocationResult<>(null);
 
@@ -415,7 +414,7 @@ public final class LambdaSafe {
 		 * @return an {@link InvocationResult}
 		 */
 		public static <R> InvocationResult<R> of(R value) {
-			return new InvocationResult<R>(value);
+			return new InvocationResult<>(value);
 		}
 
 		/**

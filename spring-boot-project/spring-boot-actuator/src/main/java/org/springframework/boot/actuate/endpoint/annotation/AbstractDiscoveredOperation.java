@@ -16,8 +16,7 @@
 
 package org.springframework.boot.actuate.endpoint.annotation;
 
-import java.util.Map;
-
+import org.springframework.boot.actuate.endpoint.InvocationContext;
 import org.springframework.boot.actuate.endpoint.Operation;
 import org.springframework.boot.actuate.endpoint.OperationType;
 import org.springframework.boot.actuate.endpoint.invoke.OperationInvoker;
@@ -58,8 +57,8 @@ public abstract class AbstractDiscoveredOperation implements Operation {
 	}
 
 	@Override
-	public Object invoke(Map<String, Object> arguments) {
-		return this.invoker.invoke(arguments);
+	public Object invoke(InvocationContext context) {
+		return this.invoker.invoke(context);
 	}
 
 	@Override

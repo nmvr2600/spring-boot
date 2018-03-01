@@ -20,7 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.boot.context.properties.bind.convert.Delimiter;
+import org.springframework.boot.convert.Delimiter;
 import org.springframework.core.io.Resource;
 
 /**
@@ -44,7 +44,7 @@ public class EmbeddedLdapProperties {
 	private Credential credential = new Credential();
 
 	/**
-	 * List of base DN.
+	 * List of base DNs.
 	 */
 	@Delimiter(Delimiter.NONE)
 	private List<String> baseDn = new ArrayList<>();

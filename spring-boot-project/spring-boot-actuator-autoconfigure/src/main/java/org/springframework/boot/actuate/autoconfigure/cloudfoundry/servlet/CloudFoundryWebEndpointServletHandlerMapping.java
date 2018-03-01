@@ -28,12 +28,12 @@ import javax.servlet.http.HttpServletResponse;
 import org.springframework.boot.actuate.autoconfigure.cloudfoundry.AccessLevel;
 import org.springframework.boot.actuate.autoconfigure.cloudfoundry.SecurityResponse;
 import org.springframework.boot.actuate.endpoint.web.EndpointLinksResolver;
+import org.springframework.boot.actuate.endpoint.web.EndpointMapping;
 import org.springframework.boot.actuate.endpoint.web.EndpointMediaTypes;
 import org.springframework.boot.actuate.endpoint.web.ExposableWebEndpoint;
 import org.springframework.boot.actuate.endpoint.web.Link;
 import org.springframework.boot.actuate.endpoint.web.WebOperation;
 import org.springframework.boot.actuate.endpoint.web.servlet.AbstractWebMvcEndpointHandlerMapping;
-import org.springframework.boot.endpoint.web.EndpointMapping;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -52,14 +52,16 @@ class CloudFoundryWebEndpointServletHandlerMapping
 
 	private final CloudFoundrySecurityInterceptor securityInterceptor;
 
-	private final EndpointLinksResolver linksResolver = new EndpointLinksResolver();
+	private final EndpointLinksResolver linksResolver;
 
 	CloudFoundryWebEndpointServletHandlerMapping(EndpointMapping endpointMapping,
 			Collection<ExposableWebEndpoint> endpoints,
 			EndpointMediaTypes endpointMediaTypes, CorsConfiguration corsConfiguration,
-			CloudFoundrySecurityInterceptor securityInterceptor) {
+			CloudFoundrySecurityInterceptor securityInterceptor,
+			EndpointLinksResolver linksResolver) {
 		super(endpointMapping, endpoints, endpointMediaTypes, corsConfiguration);
 		this.securityInterceptor = securityInterceptor;
+		this.linksResolver = linksResolver;
 	}
 
 	@Override
@@ -80,8 +82,8 @@ class CloudFoundryWebEndpointServletHandlerMapping
 		}
 		AccessLevel accessLevel = (AccessLevel) request
 				.getAttribute(AccessLevel.REQUEST_ATTRIBUTE);
-		Map<String, Link> links = this.linksResolver.resolveLinks(getEndpoints(),
-				request.getRequestURL().toString());
+		Map<String, Link> links = this.linksResolver
+				.resolveLinks(request.getRequestURL().toString());
 		Map<String, Link> filteredLinks = new LinkedHashMap<>();
 		if (accessLevel == null) {
 			return Collections.singletonMap("_links", filteredLinks);

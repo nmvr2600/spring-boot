@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ class GangliaPropertiesConfigAdapter extends PropertiesConfigAdapter<GangliaProp
 
 	@Override
 	public boolean enabled() {
-		return get(GangliaProperties::getEnabled, GangliaConfig.super::enabled);
+		return get(GangliaProperties::isEnabled, GangliaConfig.super::enabled);
 	}
 
 	@Override

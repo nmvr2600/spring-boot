@@ -28,6 +28,7 @@ import java.util.function.Supplier;
 import javax.servlet.FilterChain;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletRequestWrapper;
 import javax.servlet.http.HttpServletResponse;
 
 import io.micrometer.core.annotation.Timed;
@@ -49,6 +50,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.DispatcherServlet;
 import org.springframework.web.servlet.HandlerExecutionChain;
+import org.springframework.web.servlet.HandlerMapping;
 import org.springframework.web.servlet.handler.HandlerMappingIntrospector;
 import org.springframework.web.servlet.handler.MatchableHandlerMapping;
 import org.springframework.web.util.NestedServletException;
@@ -105,14 +107,14 @@ public class WebMvcMetricsFilter extends OncePerRequestFilter {
 	@Override
 	protected void doFilterInternal(HttpServletRequest request,
 			HttpServletResponse response, FilterChain filterChain)
-					throws ServletException, IOException {
+			throws ServletException, IOException {
 		filterAndRecordMetrics(request, response, filterChain);
 	}
 
 	private void filterAndRecordMetrics(HttpServletRequest request,
 			HttpServletResponse response, FilterChain filterChain)
-					throws IOException, ServletException, NestedServletException {
-		Object handler = null;
+			throws IOException, ServletException {
+		Object handler;
 		try {
 			handler = getHandler(request);
 		}
@@ -125,11 +127,17 @@ public class WebMvcMetricsFilter extends OncePerRequestFilter {
 	}
 
 	private Object getHandler(HttpServletRequest request) throws Exception {
-		MatchableHandlerMapping handlerMapping = getMappingIntrospector()
-				.getMatchableHandlerMapping(request);
-		HandlerExecutionChain chain = (handlerMapping == null ? null
-				: handlerMapping.getHandler(request));
-		return (chain == null ? null : chain.getHandler());
+		HttpServletRequest wrapper = new UnmodifiableAttributesRequestWrapper(request);
+		for (HandlerMapping mapping : getMappingIntrospector().getHandlerMappings()) {
+			HandlerExecutionChain chain = mapping.getHandler(wrapper);
+			if (chain != null) {
+				if (mapping instanceof MatchableHandlerMapping) {
+					return chain.getHandler();
+				}
+				return null;
+			}
+		}
+		return null;
 	}
 
 	private HandlerMappingIntrospector getMappingIntrospector() {
@@ -141,7 +149,7 @@ public class WebMvcMetricsFilter extends OncePerRequestFilter {
 
 	private void filterAndRecordMetrics(HttpServletRequest request,
 			HttpServletResponse response, FilterChain filterChain, Object handler)
-					throws IOException, ServletException, NestedServletException {
+			throws IOException, ServletException {
 		TimingContext timingContext = TimingContext.get(request);
 		if (timingContext == null) {
 			timingContext = startAndAttachTimingContext(request, handler);
@@ -268,6 +276,23 @@ public class WebMvcMetricsFilter extends OncePerRequestFilter {
 
 		public static TimingContext get(HttpServletRequest request) {
 			return (TimingContext) request.getAttribute(ATTRIBUTE);
+		}
+
+	}
+
+	/**
+	 * An {@link HttpServletRequestWrapper} that prevents modification of the request's
+	 * attributes.
+	 */
+	private static final class UnmodifiableAttributesRequestWrapper
+			extends HttpServletRequestWrapper {
+
+		private UnmodifiableAttributesRequestWrapper(HttpServletRequest request) {
+			super(request);
+		}
+
+		@Override
+		public void setAttribute(String name, Object value) {
 		}
 
 	}

@@ -16,6 +16,8 @@
 
 package org.springframework.boot.actuate.metrics.web.client;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.stream.StreamSupport;
 
 import io.micrometer.core.instrument.MeterRegistry;
@@ -57,8 +59,7 @@ public class MetricsRestTemplateCustomizerTests {
 		this.restTemplate = new RestTemplate();
 		this.mockServer = MockRestServiceServer.createServer(this.restTemplate);
 		this.customizer = new MetricsRestTemplateCustomizer(this.registry,
-				new DefaultRestTemplateExchangeTagsProvider(), "http.client.requests",
-				true);
+				new DefaultRestTemplateExchangeTagsProvider(), "http.client.requests");
 		this.customizer.customize(this.restTemplate);
 	}
 
@@ -69,8 +70,8 @@ public class MetricsRestTemplateCustomizerTests {
 				.andRespond(MockRestResponseCreators.withSuccess("OK",
 						MediaType.APPLICATION_JSON));
 		String result = this.restTemplate.getForObject("/test/{id}", String.class, 123);
-		assertThat(this.registry.find("http.client.requests")
-				.meters()).anySatisfy((m) -> assertThat(
+		assertThat(this.registry.find("http.client.requests").meters())
+				.anySatisfy((m) -> assertThat(
 						StreamSupport.stream(m.getId().getTags().spliterator(), false)
 								.map(Tag::getKey)).doesNotContain("bucket"));
 		assertThat(this.registry.get("http.client.requests")
@@ -97,6 +98,20 @@ public class MetricsRestTemplateCustomizerTests {
 		String result = this.restTemplate.getForObject("test/{id}", String.class, 123);
 		this.registry.get("http.client.requests").tags("uri", "/test/{id}").timer();
 		assertThat(result).isEqualTo("OK");
+		this.mockServer.verify();
+	}
+
+	@Test
+	public void interceptRestTemplateWithUri() throws URISyntaxException {
+		this.mockServer
+				.expect(MockRestRequestMatchers.requestTo("http://localhost/test/123"))
+				.andExpect(MockRestRequestMatchers.method(HttpMethod.GET))
+				.andRespond(MockRestResponseCreators.withSuccess("OK",
+						MediaType.APPLICATION_JSON));
+		String result = this.restTemplate
+				.getForObject(new URI("http://localhost/test/123"), String.class);
+		assertThat(result).isEqualTo("OK");
+		this.registry.get("http.client.requests").tags("uri", "/test/123").timer();
 		this.mockServer.verify();
 	}
 

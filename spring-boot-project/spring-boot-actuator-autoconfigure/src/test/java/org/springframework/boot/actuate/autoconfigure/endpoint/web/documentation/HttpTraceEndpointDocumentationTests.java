@@ -25,13 +25,13 @@ import java.util.UUID;
 
 import org.junit.Test;
 
-import org.springframework.boot.actuate.web.trace.HttpExchangeTracer;
-import org.springframework.boot.actuate.web.trace.HttpTrace;
-import org.springframework.boot.actuate.web.trace.HttpTraceEndpoint;
-import org.springframework.boot.actuate.web.trace.HttpTraceRepository;
-import org.springframework.boot.actuate.web.trace.Include;
-import org.springframework.boot.actuate.web.trace.TraceableRequest;
-import org.springframework.boot.actuate.web.trace.TraceableResponse;
+import org.springframework.boot.actuate.trace.http.HttpExchangeTracer;
+import org.springframework.boot.actuate.trace.http.HttpTrace;
+import org.springframework.boot.actuate.trace.http.HttpTraceEndpoint;
+import org.springframework.boot.actuate.trace.http.HttpTraceRepository;
+import org.springframework.boot.actuate.trace.http.Include;
+import org.springframework.boot.actuate.trace.http.TraceableRequest;
+import org.springframework.boot.actuate.trace.http.TraceableResponse;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -77,10 +77,9 @@ public class HttpTraceEndpointDocumentationTests
 				() -> UUID.randomUUID().toString());
 		given(this.repository.findAll()).willReturn(Arrays.asList(trace));
 		this.mockMvc.perform(get("/actuator/httptrace")).andExpect(status().isOk())
-				.andDo(document("httptrace",
-						responseFields(
-								fieldWithPath("traces").description(
-										"An array of traced HTTP request-response exchanges."),
+				.andDo(document("httptrace", responseFields(
+						fieldWithPath("traces").description(
+								"An array of traced HTTP request-response exchanges."),
 						fieldWithPath("traces.[].timestamp").description(
 								"Timestamp of when the traced exchange occurred."),
 						fieldWithPath("traces.[].principal")
@@ -90,9 +89,8 @@ public class HttpTraceEndpointDocumentationTests
 								.description("Name of the principal.").optional(),
 						fieldWithPath("traces.[].request.method")
 								.description("HTTP method of the request."),
-						fieldWithPath("traces.[].request.remoteAddress")
-								.description(
-										"Remote address from which the request was received, if known.")
+						fieldWithPath("traces.[].request.remoteAddress").description(
+								"Remote address from which the request was received, if known.")
 								.optional().type(JsonFieldType.STRING),
 						fieldWithPath("traces.[].request.uri")
 								.description("URI of the request."),

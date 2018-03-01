@@ -19,8 +19,10 @@ package org.springframework.boot.actuate.endpoint.web.reactive;
 import java.lang.reflect.Method;
 import java.security.Principal;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
@@ -28,17 +30,25 @@ import reactor.core.publisher.MonoSink;
 import reactor.core.scheduler.Schedulers;
 
 import org.springframework.boot.actuate.endpoint.InvalidEndpointRequestException;
+import org.springframework.boot.actuate.endpoint.InvocationContext;
 import org.springframework.boot.actuate.endpoint.OperationType;
+import org.springframework.boot.actuate.endpoint.SecurityContext;
 import org.springframework.boot.actuate.endpoint.invoke.OperationInvoker;
+import org.springframework.boot.actuate.endpoint.web.EndpointMapping;
 import org.springframework.boot.actuate.endpoint.web.EndpointMediaTypes;
 import org.springframework.boot.actuate.endpoint.web.ExposableWebEndpoint;
 import org.springframework.boot.actuate.endpoint.web.WebEndpointResponse;
 import org.springframework.boot.actuate.endpoint.web.WebOperation;
 import org.springframework.boot.actuate.endpoint.web.WebOperationRequestPredicate;
-import org.springframework.boot.endpoint.web.EndpointMapping;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDecisionVoter;
+import org.springframework.security.access.SecurityConfig;
+import org.springframework.security.access.vote.RoleVoter;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
+import org.springframework.util.ClassUtils;
 import org.springframework.util.ReflectionUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -157,15 +167,11 @@ public abstract class AbstractWebFluxEndpointHandlerMapping
 		RequestMethodsRequestCondition methods = new RequestMethodsRequestCondition(
 				RequestMethod.valueOf(predicate.getHttpMethod().name()));
 		ConsumesRequestCondition consumes = new ConsumesRequestCondition(
-				toStringArray(predicate.getConsumes()));
+				StringUtils.toStringArray(predicate.getConsumes()));
 		ProducesRequestCondition produces = new ProducesRequestCondition(
-				toStringArray(predicate.getProduces()));
+				StringUtils.toStringArray(predicate.getProduces()));
 		return new RequestMappingInfo(null, patterns, methods, null, null, consumes,
 				produces, null);
-	}
-
-	private String[] toStringArray(Collection<String> collection) {
-		return collection.toArray(new String[collection.size()]);
 	}
 
 	private void registerLinksMapping() {
@@ -174,8 +180,7 @@ public abstract class AbstractWebFluxEndpointHandlerMapping
 		RequestMethodsRequestCondition methods = new RequestMethodsRequestCondition(
 				RequestMethod.GET);
 		ProducesRequestCondition produces = new ProducesRequestCondition(
-				this.endpointMediaTypes.getProduced().toArray(
-						new String[this.endpointMediaTypes.getProduced().size()]));
+				StringUtils.toStringArray(this.endpointMediaTypes.getProduced()));
 		RequestMappingInfo mapping = new RequestMappingInfo(patterns, methods, null, null,
 				null, produces, null);
 		registerMapping(mapping, this, this.linksMethod);
@@ -221,14 +226,14 @@ public abstract class AbstractWebFluxEndpointHandlerMapping
 		}
 
 		@Override
-		public Object invoke(Map<String, Object> arguments) {
-			return Mono.create((sink) -> Schedulers.elastic()
-					.schedule(() -> invoke(arguments, sink)));
+		public Object invoke(InvocationContext context) {
+			return Mono.create(
+					(sink) -> Schedulers.elastic().schedule(() -> invoke(context, sink)));
 		}
 
-		private void invoke(Map<String, Object> arguments, MonoSink<Object> sink) {
+		private void invoke(InvocationContext context, MonoSink<Object> sink) {
 			try {
-				Object result = this.invoker.invoke(arguments);
+				Object result = this.invoker.invoke(context);
 				sink.success(result);
 			}
 			catch (Exception ex) {
@@ -255,35 +260,49 @@ public abstract class AbstractWebFluxEndpointHandlerMapping
 	private static final class ReactiveWebOperationAdapter
 			implements ReactiveWebOperation {
 
-		private static final Principal NO_PRINCIPAL = new Principal() {
-
-			@Override
-			public String getName() {
-				throw new UnsupportedOperationException();
-			}
-
-		};
-
 		private final OperationInvoker invoker;
+
+		private final Supplier<Mono<? extends SecurityContext>> securityContextSupplier;
 
 		private ReactiveWebOperationAdapter(OperationInvoker invoker) {
 			this.invoker = invoker;
+			this.securityContextSupplier = getSecurityContextSupplier();
+		}
+
+		private Supplier<Mono<? extends SecurityContext>> getSecurityContextSupplier() {
+			if (ClassUtils.isPresent(
+					"org.springframework.security.core.context.ReactiveSecurityContextHolder",
+					getClass().getClassLoader())) {
+				return this::springSecurityContext;
+			}
+			return this::emptySecurityContext;
+		}
+
+		public Mono<? extends SecurityContext> springSecurityContext() {
+			return ReactiveSecurityContextHolder.getContext()
+					.map((securityContext) -> new ReactiveSecurityContext(
+							securityContext.getAuthentication()))
+					.switchIfEmpty(Mono.just(new ReactiveSecurityContext(null)));
+		}
+
+		public Mono<SecurityContext> emptySecurityContext() {
+			return Mono.just(SecurityContext.NONE);
 		}
 
 		@Override
 		public Mono<ResponseEntity<Object>> handle(ServerWebExchange exchange,
 				Map<String, String> body) {
-			return exchange.getPrincipal().defaultIfEmpty(NO_PRINCIPAL)
-					.flatMap((principal) -> {
-						Map<String, Object> arguments = getArguments(exchange, principal,
-								body);
-						return handleResult((Publisher<?>) this.invoker.invoke(arguments),
-								exchange.getRequest().getMethod());
-					});
+			Map<String, Object> arguments = getArguments(exchange, body);
+			return this.securityContextSupplier.get()
+					.map((securityContext) -> new InvocationContext(securityContext,
+							arguments))
+					.flatMap((invocationContext) -> handleResult(
+							(Publisher<?>) this.invoker.invoke(invocationContext),
+							exchange.getRequest().getMethod()));
 		}
 
 		private Map<String, Object> getArguments(ServerWebExchange exchange,
-				Principal principal, Map<String, String> body) {
+				Map<String, String> body) {
 			Map<String, Object> arguments = new LinkedHashMap<>();
 			arguments.putAll(getTemplateVariables(exchange));
 			if (body != null) {
@@ -291,16 +310,11 @@ public abstract class AbstractWebFluxEndpointHandlerMapping
 			}
 			exchange.getRequest().getQueryParams().forEach((name, values) -> arguments
 					.put(name, values.size() == 1 ? values.get(0) : values));
-			if (principal != null && principal != NO_PRINCIPAL) {
-				arguments.put("principal", principal);
-			}
 			return arguments;
 		}
 
-		@SuppressWarnings("unchecked")
 		private Map<String, String> getTemplateVariables(ServerWebExchange exchange) {
-			return (Map<String, String>) exchange
-					.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
+			return exchange.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
 		}
 
 		private Mono<ResponseEntity<Object>> handleResult(Publisher<?> result,
@@ -360,4 +374,32 @@ public abstract class AbstractWebFluxEndpointHandlerMapping
 		}
 
 	}
+
+	private static final class ReactiveSecurityContext implements SecurityContext {
+
+		private final RoleVoter roleVoter = new RoleVoter();
+
+		private final Authentication authentication;
+
+		ReactiveSecurityContext(Authentication authentication) {
+			this.authentication = authentication;
+		}
+
+		@Override
+		public Principal getPrincipal() {
+			return this.authentication;
+		}
+
+		@Override
+		public boolean isUserInRole(String role) {
+			if (!role.startsWith(this.roleVoter.getRolePrefix())) {
+				role = this.roleVoter.getRolePrefix() + role;
+			}
+			return this.roleVoter.vote(this.authentication, null,
+					Collections.singletonList(new SecurityConfig(
+							role))) == AccessDecisionVoter.ACCESS_GRANTED;
+		}
+
+	}
+
 }

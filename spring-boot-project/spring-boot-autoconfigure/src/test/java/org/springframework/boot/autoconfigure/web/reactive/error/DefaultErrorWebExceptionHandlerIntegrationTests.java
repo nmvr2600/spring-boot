@@ -27,7 +27,7 @@ import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.context.PropertyPlaceholderAutoConfiguration;
 import org.springframework.boot.autoconfigure.mustache.MustacheAutoConfiguration;
 import org.springframework.boot.autoconfigure.web.reactive.HttpHandlerAutoConfiguration;
-import org.springframework.boot.autoconfigure.web.reactive.ReactiveWebServerAutoConfiguration;
+import org.springframework.boot.autoconfigure.web.reactive.ReactiveWebServerFactoryAutoConfiguration;
 import org.springframework.boot.autoconfigure.web.reactive.WebFluxAutoConfiguration;
 import org.springframework.boot.test.context.runner.ReactiveWebApplicationContextRunner;
 import org.springframework.boot.test.rule.OutputCapture;
@@ -58,7 +58,7 @@ public class DefaultErrorWebExceptionHandlerIntegrationTests {
 
 	private ReactiveWebApplicationContextRunner contextRunner = new ReactiveWebApplicationContextRunner()
 			.withConfiguration(AutoConfigurations.of(
-					ReactiveWebServerAutoConfiguration.class,
+					ReactiveWebServerFactoryAutoConfiguration.class,
 					HttpHandlerAutoConfiguration.class, WebFluxAutoConfiguration.class,
 					ErrorWebFluxAutoConfiguration.class,
 					PropertyPlaceholderAutoConfiguration.class,
@@ -131,6 +131,9 @@ public class DefaultErrorWebExceptionHandlerIntegrationTests {
 					.isEqualTo(("/bind")).jsonPath("exception").doesNotExist()
 					.jsonPath("errors").isArray().jsonPath("message").isNotEmpty();
 		});
+		this.output.expect(allOf(containsString("Failed to handle request [POST /bind]"),
+				containsString("Validation failed for argument"),
+				containsString("Field error in object 'dummyBody' on field 'content'")));
 	}
 
 	@Test

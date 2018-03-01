@@ -145,7 +145,7 @@ public class JettyServletWebServerFactory extends AbstractServletWebServerFactor
 		server.setHandler(addHandlerWrappers(context));
 		this.logger.info("Server initialized with port: " + port);
 		if (getSsl() != null && getSsl().isEnabled()) {
-			customizeSsl(server, port);
+			customizeSsl(server, address);
 		}
 		for (JettyServerCustomizer customizer : getServerCustomizers()) {
 			customizer.customize(server);
@@ -193,8 +193,8 @@ public class JettyServletWebServerFactory extends AbstractServletWebServerFactor
 		return wrapper;
 	}
 
-	private void customizeSsl(Server server, int port) {
-		new SslServerCustomizer(port, getSsl(), getSslStoreProvider(), getHttp2())
+	private void customizeSsl(Server server, InetSocketAddress address) {
+		new SslServerCustomizer(address, getSsl(), getSslStoreProvider(), getHttp2())
 				.customize(server);
 	}
 
@@ -277,8 +277,8 @@ public class JettyServletWebServerFactory extends AbstractServletWebServerFactor
 					resources.add(resource);
 				}
 			}
-			handler.setBaseResource(new ResourceCollection(
-					resources.toArray(new Resource[resources.size()])));
+			handler.setBaseResource(
+					new ResourceCollection(resources.toArray(new Resource[0])));
 		}
 		catch (Exception ex) {
 			throw new IllegalStateException(ex);
@@ -287,7 +287,7 @@ public class JettyServletWebServerFactory extends AbstractServletWebServerFactor
 
 	private Resource createResource(URL url) throws IOException {
 		if ("file".equals(url.getProtocol())) {
-			File file = new File(url.getFile());
+			File file = new File(getDecodedFile(url));
 			if (file.isFile()) {
 				return Resource.newResource("jar:" + url + "!/META-INF/resources");
 			}
@@ -343,7 +343,7 @@ public class JettyServletWebServerFactory extends AbstractServletWebServerFactor
 		configurations.addAll(getConfigurations());
 		configurations.add(getErrorPageConfiguration());
 		configurations.add(getMimeTypeConfiguration());
-		return configurations.toArray(new Configuration[configurations.size()]);
+		return configurations.toArray(new Configuration[0]);
 	}
 
 	/**

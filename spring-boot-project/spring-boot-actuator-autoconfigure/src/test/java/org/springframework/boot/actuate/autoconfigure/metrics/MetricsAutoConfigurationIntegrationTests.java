@@ -16,155 +16,100 @@
 
 package org.springframework.boot.actuate.autoconfigure.metrics;
 
-import java.util.Collections;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CyclicBarrier;
-
-import javax.servlet.DispatcherType;
-
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.MockClock;
-import io.micrometer.core.instrument.binder.MeterBinder;
-import io.micrometer.core.instrument.binder.jvm.JvmMemoryMetrics;
-import io.micrometer.core.instrument.binder.logging.LogbackMetrics;
+import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleConfig;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.graphite.GraphiteMeterRegistry;
+import io.micrometer.jmx.JmxMeterRegistry;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.actuate.metrics.web.servlet.WebMvcMetricsFilter;
-import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
-import org.springframework.boot.autoconfigure.http.HttpMessageConvertersAutoConfiguration;
-import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
-import org.springframework.boot.autoconfigure.web.client.RestTemplateAutoConfiguration;
-import org.springframework.boot.autoconfigure.web.servlet.DispatcherServletAutoConfiguration;
-import org.springframework.boot.autoconfigure.web.servlet.ServletWebServerFactoryAutoConfiguration;
-import org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
-import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.boot.web.client.RestTemplateBuilder;
-import org.springframework.boot.web.servlet.FilterRegistrationBean;
-import org.springframework.context.ApplicationContext;
+import org.springframework.boot.actuate.autoconfigure.metrics.export.graphite.GraphiteMetricsExportAutoConfiguration;
+import org.springframework.boot.actuate.autoconfigure.metrics.export.jmx.JmxMetricsExportAutoConfiguration;
+import org.springframework.boot.actuate.autoconfigure.metrics.test.MetricsRun;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringRunner;
-import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.test.web.client.MockRestServiceServer;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.client.RestTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.client.ExpectedCount.once;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 /**
- * Integration tests for {@link MetricsAutoConfiguration}.
+ * Integration tests for metrics auto-configuration.
  *
- * @author Jon Schneider
+ * @author Stephane Nicoll
  */
-@RunWith(SpringRunner.class)
-@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT, classes = MetricsAutoConfigurationIntegrationTests.MetricsApp.class)
-@TestPropertySource(properties = "management.metrics.use-global-registry=false")
 public class MetricsAutoConfigurationIntegrationTests {
 
-	@Autowired
-	private ApplicationContext context;
+	private ApplicationContextRunner contextRunner = new ApplicationContextRunner()
+			.with(MetricsRun.simple());
 
-	@Autowired
-	private RestTemplate external;
-
-	@Autowired
-	private TestRestTemplate loopback;
-
-	@Autowired
-	private MeterRegistry registry;
-
-	@SuppressWarnings("unchecked")
 	@Test
-	public void restTemplateIsInstrumented() {
-		MockRestServiceServer server = MockRestServiceServer.bindTo(this.external)
-				.build();
-		server.expect(once(), requestTo("/api/external"))
-				.andExpect(method(HttpMethod.GET)).andRespond(withSuccess(
-						"{\"message\": \"hello\"}", MediaType.APPLICATION_JSON));
-		assertThat(this.external.getForObject("/api/external", Map.class))
-				.containsKey("message");
-		assertThat(this.registry.get("http.client.requests").timer().count())
-				.isEqualTo(1);
+	public void propertyBasedMeterFilteringIsAutoConfigured() {
+		this.contextRunner.withPropertyValues("management.metrics.enable.my.org=false")
+				.run((context) -> {
+					MeterRegistry registry = context.getBean(MeterRegistry.class);
+					registry.timer("my.org.timer");
+					assertThat(registry.find("my.org.timer").timer()).isNull();
+				});
 	}
 
 	@Test
-	public void requestMappingIsInstrumented() {
-		this.loopback.getForObject("/api/people", Set.class);
-		assertThat(this.registry.get("http.server.requests").timer().count())
-				.isEqualTo(1);
+	public void simpleMeterRegistryIsUsedAsAFallback() {
+		this.contextRunner
+				.run((context) -> assertThat(context.getBean(MeterRegistry.class))
+						.isInstanceOf(SimpleMeterRegistry.class));
 	}
 
 	@Test
-	public void automaticallyRegisteredBinders() {
-		assertThat(this.context.getBeansOfType(MeterBinder.class).values())
-				.hasAtLeastOneElementOfType(LogbackMetrics.class)
-				.hasAtLeastOneElementOfType(JvmMemoryMetrics.class);
+	public void emptyCompositeIsCreatedWhenNoMeterRegistriesAreAutoConfigured() {
+		new ApplicationContextRunner().with(MetricsRun.limitedTo()).run((context) -> {
+			MeterRegistry registry = context.getBean(MeterRegistry.class);
+			assertThat(registry).isInstanceOf(CompositeMeterRegistry.class);
+			assertThat(((CompositeMeterRegistry) registry).getRegistries()).isEmpty();
+		});
 	}
 
 	@Test
-	@SuppressWarnings({ "rawtypes", "unchecked" })
-	public void metricsFilterRegisteredForAsyncDispatches() {
-		Map<String, FilterRegistrationBean> filterRegistrations = this.context
-				.getBeansOfType(FilterRegistrationBean.class);
-		assertThat(filterRegistrations).containsKey("webMvcMetricsFilter");
-		FilterRegistrationBean registration = filterRegistrations
-				.get("webMvcMetricsFilter");
-		assertThat(registration.getFilter()).isInstanceOf(WebMvcMetricsFilter.class);
-		assertThat((Set<DispatcherType>) ReflectionTestUtils.getField(registration,
-				"dispatcherTypes")).containsExactlyInAnyOrder(DispatcherType.REQUEST,
-						DispatcherType.ASYNC);
+	public void noCompositeIsCreatedWhenASingleMeterRegistryIsAutoConfigured() {
+		new ApplicationContextRunner()
+				.with(MetricsRun.limitedTo(GraphiteMetricsExportAutoConfiguration.class))
+				.run((context) -> assertThat(context.getBean(MeterRegistry.class))
+						.isInstanceOf(GraphiteMeterRegistry.class));
+	}
+
+	@Test
+	public void noCompositeIsCreatedWithMultipleRegistriesAndOneThatIsPrimary() {
+		new ApplicationContextRunner()
+				.with(MetricsRun.limitedTo(GraphiteMetricsExportAutoConfiguration.class,
+						JmxMetricsExportAutoConfiguration.class))
+				.withUserConfiguration(PrimaryMeterRegistryConfiguration.class)
+				.run((context) -> assertThat(context.getBean(MeterRegistry.class))
+						.isInstanceOf(SimpleMeterRegistry.class));
+	}
+
+	@Test
+	public void compositeCreatedWithMultipleRegistries() {
+		new ApplicationContextRunner()
+				.with(MetricsRun.limitedTo(GraphiteMetricsExportAutoConfiguration.class,
+						JmxMetricsExportAutoConfiguration.class))
+				.run((context) -> {
+					MeterRegistry registry = context.getBean(MeterRegistry.class);
+					assertThat(registry).isInstanceOf(CompositeMeterRegistry.class);
+					assertThat(((CompositeMeterRegistry) registry).getRegistries())
+							.hasAtLeastOneElementOfType(GraphiteMeterRegistry.class)
+							.hasAtLeastOneElementOfType(JmxMeterRegistry.class);
+				});
 	}
 
 	@Configuration
-	@ImportAutoConfiguration({ MetricsAutoConfiguration.class,
-			JacksonAutoConfiguration.class, HttpMessageConvertersAutoConfiguration.class,
-			RestTemplateAutoConfiguration.class, WebMvcAutoConfiguration.class,
-			DispatcherServletAutoConfiguration.class,
-			ServletWebServerFactoryAutoConfiguration.class })
-	@Import(PersonController.class)
-	static class MetricsApp {
+	static class PrimaryMeterRegistryConfiguration {
 
 		@Primary
 		@Bean
-		public MeterRegistry registry() {
+		public MeterRegistry simpleMeterRegistry() {
 			return new SimpleMeterRegistry(SimpleConfig.DEFAULT, new MockClock());
-		}
-
-		@Bean
-		public RestTemplate restTemplate(RestTemplateBuilder restTemplateBuilder) {
-			return restTemplateBuilder.build();
-		}
-
-		@Bean
-		public CyclicBarrier cyclicBarrier() {
-			return new CyclicBarrier(2);
-		}
-
-	}
-
-	@RestController
-	static class PersonController {
-
-		@GetMapping("/api/people")
-		Set<String> personName() {
-			return Collections.singleton("Jon");
 		}
 
 	}

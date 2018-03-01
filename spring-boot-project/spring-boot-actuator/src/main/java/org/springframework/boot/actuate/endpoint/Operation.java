@@ -16,8 +16,6 @@
 
 package org.springframework.boot.actuate.endpoint;
 
-import java.util.Map;
-
 /**
  * An operation on an {@link ExposableEndpoint endpoint}.
  *
@@ -34,10 +32,10 @@ public interface Operation {
 	OperationType getType();
 
 	/**
-	 * Invoke the underlying operation using the given {@code arguments}.
-	 * @param arguments the arguments to pass to the operation
+	 * Invoke the underlying operation using the given {@code context}.
+	 * @param context the context in to use when invoking the operation
 	 * @return the result of the operation, may be {@code null}
 	 */
-	Object invoke(Map<String, Object> arguments);
+	Object invoke(InvocationContext context);
 
 }

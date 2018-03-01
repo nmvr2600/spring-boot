@@ -19,6 +19,7 @@ package org.springframework.boot.autoconfigure.session;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 import javax.annotation.PostConstruct;
 
@@ -48,6 +49,7 @@ import org.springframework.core.type.AnnotationMetadata;
 import org.springframework.session.ReactiveSessionRepository;
 import org.springframework.session.Session;
 import org.springframework.session.SessionRepository;
+import org.springframework.util.StringUtils;
 
 /**
  * {@link EnableAutoConfiguration Auto-configuration} for Spring Session.
@@ -113,7 +115,7 @@ public class SessionAutoConfiguration {
 				imports.add(SessionStoreMappings.getConfigurationClass(webApplicationType,
 						types[i]));
 			}
-			return imports.toArray(new String[imports.size()]);
+			return StringUtils.toStringArray(imports);
 		}
 
 	}
@@ -246,13 +248,13 @@ public class SessionAutoConfiguration {
 		public void checkSessionRepository() {
 			StoreType storeType = this.sessionProperties.getStoreType();
 			if (storeType != StoreType.NONE
-					&& this.sessionRepositoryProvider.getIfAvailable() == null) {
-				if (storeType != null) {
-					throw new SessionRepositoryUnavailableException("No session "
-							+ "repository could be auto-configured, check your "
-							+ "configuration (session store type is '"
-							+ storeType.name().toLowerCase() + "')", storeType);
-				}
+					&& this.sessionRepositoryProvider.getIfAvailable() == null
+					&& storeType != null) {
+				throw new SessionRepositoryUnavailableException(
+						"No session repository could be auto-configured, check your "
+								+ "configuration (session store type is '"
+								+ storeType.name().toLowerCase(Locale.ENGLISH) + "')",
+						storeType);
 			}
 		}
 

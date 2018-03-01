@@ -233,8 +233,7 @@ public class AnnotationConfigReactiveWebApplicationContext
 					+ StringUtils.collectionToCommaDelimitedString(this.annotatedClasses)
 					+ "]");
 		}
-		reader.register(this.annotatedClasses
-				.toArray(new Class<?>[this.annotatedClasses.size()]));
+		reader.register(ClassUtils.toClassArray(this.annotatedClasses));
 	}
 
 	private void scanBasePackages(ClassPathBeanDefinitionScanner scanner) {
@@ -243,12 +242,12 @@ public class AnnotationConfigReactiveWebApplicationContext
 					+ StringUtils.collectionToCommaDelimitedString(this.basePackages)
 					+ "]");
 		}
-		scanner.scan(this.basePackages.toArray(new String[this.basePackages.size()]));
+		scanner.scan(StringUtils.toStringArray(this.basePackages));
 	}
 
 	private void registerConfigLocations(AnnotatedBeanDefinitionReader reader,
 			ClassPathBeanDefinitionScanner scanner, String[] configLocations)
-					throws LinkageError {
+			throws LinkageError {
 		for (String configLocation : configLocations) {
 			try {
 				register(reader, configLocation);

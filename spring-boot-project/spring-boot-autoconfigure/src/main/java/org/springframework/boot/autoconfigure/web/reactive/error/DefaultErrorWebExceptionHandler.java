@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -39,6 +40,7 @@ import org.springframework.web.reactive.function.server.RouterFunction;
 import org.springframework.web.reactive.function.server.RouterFunctions;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Basic global {@link org.springframework.web.server.WebExceptionHandler}, rendering
@@ -188,16 +190,37 @@ public class DefaultErrorWebExceptionHandler extends AbstractErrorWebExceptionHa
 	}
 
 	/**
-	 * Log the original exception if handling it results in a Server Error.
+	 * Log the original exception if handling it results in a Server Error or a Bad
+	 * Request (Client Error with 400 status code) one.
 	 * @param request the source request
 	 * @param errorStatus the HTTP error status
 	 */
 	protected void logError(ServerRequest request, HttpStatus errorStatus) {
-		if (errorStatus.is5xxServerError()) {
-			Throwable ex = getError(request);
-			logger.error("Failed to handle request [" + request.methodName() + " "
-					+ request.uri() + "]", ex);
+		Throwable ex = getError(request);
+		log(request, ex, (errorStatus.is5xxServerError() ? logger::error : logger::warn));
+	}
+
+	private void log(ServerRequest request, Throwable ex,
+			BiConsumer<Object, Throwable> logger) {
+		if (ex instanceof ResponseStatusException) {
+			logger.accept(buildMessage(request, ex), null);
 		}
+		else {
+			logger.accept(buildMessage(request, null), ex);
+		}
+	}
+
+	private String buildMessage(ServerRequest request, Throwable ex) {
+		StringBuilder message = new StringBuilder("Failed to handle request [");
+		message.append(request.methodName());
+		message.append(" ");
+		message.append(request.uri());
+		message.append("]");
+		if (ex != null) {
+			message.append(": ");
+			message.append(ex.getMessage());
+		}
+		return message.toString();
 	}
 
 }

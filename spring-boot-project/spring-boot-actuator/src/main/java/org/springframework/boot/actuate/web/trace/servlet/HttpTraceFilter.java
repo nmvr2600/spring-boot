@@ -26,9 +26,9 @@ import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpServletResponseWrapper;
 import javax.servlet.http.HttpSession;
 
-import org.springframework.boot.actuate.web.trace.HttpExchangeTracer;
-import org.springframework.boot.actuate.web.trace.HttpTrace;
-import org.springframework.boot.actuate.web.trace.HttpTraceRepository;
+import org.springframework.boot.actuate.trace.http.HttpExchangeTracer;
+import org.springframework.boot.actuate.trace.http.HttpTrace;
+import org.springframework.boot.actuate.trace.http.HttpTraceRepository;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -75,7 +75,7 @@ public class HttpTraceFilter extends OncePerRequestFilter implements Ordered {
 	@Override
 	protected void doFilterInternal(HttpServletRequest request,
 			HttpServletResponse response, FilterChain filterChain)
-					throws ServletException, IOException {
+			throws ServletException, IOException {
 		TraceableHttpServletRequest traceableRequest = new TraceableHttpServletRequest(
 				request);
 		HttpTrace trace = this.tracer.receivedRequest(traceableRequest);

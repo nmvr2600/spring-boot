@@ -29,13 +29,15 @@ import javax.servlet.http.HttpServletResponse;
 
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.boot.actuate.endpoint.InvalidEndpointRequestException;
+import org.springframework.boot.actuate.endpoint.InvocationContext;
+import org.springframework.boot.actuate.endpoint.SecurityContext;
 import org.springframework.boot.actuate.endpoint.invoke.OperationInvoker;
+import org.springframework.boot.actuate.endpoint.web.EndpointMapping;
 import org.springframework.boot.actuate.endpoint.web.EndpointMediaTypes;
 import org.springframework.boot.actuate.endpoint.web.ExposableWebEndpoint;
 import org.springframework.boot.actuate.endpoint.web.WebEndpointResponse;
 import org.springframework.boot.actuate.endpoint.web.WebOperation;
 import org.springframework.boot.actuate.endpoint.web.WebOperationRequestPredicate;
-import org.springframework.boot.endpoint.web.EndpointMapping;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -153,15 +155,11 @@ public abstract class AbstractWebMvcEndpointHandlerMapping
 		RequestMethodsRequestCondition methods = new RequestMethodsRequestCondition(
 				RequestMethod.valueOf(predicate.getHttpMethod().name()));
 		ConsumesRequestCondition consumes = new ConsumesRequestCondition(
-				toStringArray(predicate.getConsumes()));
+				StringUtils.toStringArray(predicate.getConsumes()));
 		ProducesRequestCondition produces = new ProducesRequestCondition(
-				toStringArray(predicate.getProduces()));
+				StringUtils.toStringArray(predicate.getProduces()));
 		return new RequestMappingInfo(null, patterns, methods, null, null, consumes,
 				produces, null);
-	}
-
-	private String[] toStringArray(Collection<String> collection) {
-		return collection.toArray(new String[collection.size()]);
 	}
 
 	private void registerLinksMapping() {
@@ -169,8 +167,8 @@ public abstract class AbstractWebMvcEndpointHandlerMapping
 		RequestMethodsRequestCondition methods = new RequestMethodsRequestCondition(
 				RequestMethod.GET);
 		ProducesRequestCondition produces = new ProducesRequestCondition(
-				this.endpointMediaTypes.getProduced().toArray(
-						new String[this.endpointMediaTypes.getProduced().size()]));
+				this.endpointMediaTypes.getProduced().toArray(StringUtils
+						.toStringArray(this.endpointMediaTypes.getProduced())));
 		RequestMappingInfo mapping = new RequestMappingInfo(patterns, methods, null, null,
 				null, produces, null);
 		registerMapping(mapping, this, this.linksMethod);
@@ -241,7 +239,9 @@ public abstract class AbstractWebMvcEndpointHandlerMapping
 				@RequestBody(required = false) Map<String, String> body) {
 			Map<String, Object> arguments = getArguments(request, body);
 			try {
-				return handleResult(this.invoker.invoke(arguments),
+				return handleResult(
+						this.invoker.invoke(new InvocationContext(
+								new ServletSecurityContext(request), arguments)),
 						HttpMethod.valueOf(request.getMethod()));
 			}
 			catch (InvalidEndpointRequestException ex) {
@@ -258,10 +258,6 @@ public abstract class AbstractWebMvcEndpointHandlerMapping
 			}
 			request.getParameterMap().forEach((name, values) -> arguments.put(name,
 					values.length == 1 ? values[0] : Arrays.asList(values)));
-			Principal principal = request.getUserPrincipal();
-			if (principal != null) {
-				arguments.put("principal", principal);
-			}
 			return arguments;
 		}
 
@@ -310,6 +306,26 @@ public abstract class AbstractWebMvcEndpointHandlerMapping
 
 		BadOperationRequestException(String message) {
 			super(message);
+		}
+
+	}
+
+	private static final class ServletSecurityContext implements SecurityContext {
+
+		private final HttpServletRequest request;
+
+		private ServletSecurityContext(HttpServletRequest request) {
+			this.request = request;
+		}
+
+		@Override
+		public Principal getPrincipal() {
+			return this.request.getUserPrincipal();
+		}
+
+		@Override
+		public boolean isUserInRole(String role) {
+			return this.request.isUserInRole(role);
 		}
 
 	}

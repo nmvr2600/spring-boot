@@ -367,7 +367,7 @@ public class UndertowServletWebServerFactory extends AbstractServletWebServerFac
 				: new LoaderHidingResourceManager(rootResourceManager));
 		for (URL url : metaInfResourceUrls) {
 			if ("file".equals(url.getProtocol())) {
-				File file = new File(url.getFile());
+				File file = new File(getDecodedFile(url));
 				if (file.isFile()) {
 					try {
 						resourceJarUrls.add(new URL("jar:" + url + "!/"));
@@ -387,7 +387,7 @@ public class UndertowServletWebServerFactory extends AbstractServletWebServerFac
 		}
 		resourceManagers.add(new MetaInfResourcesResourceManager(resourceJarUrls));
 		return new CompositeResourceManager(
-				resourceManagers.toArray(new ResourceManager[resourceManagers.size()]));
+				resourceManagers.toArray(new ResourceManager[0]));
 	}
 
 	private File getCanonicalDocumentRoot(File docBase) {

@@ -20,12 +20,18 @@ import io.micrometer.core.instrument.Clock;
 import io.micrometer.core.instrument.util.HierarchicalNameMapper;
 import io.micrometer.statsd.StatsdConfig;
 import io.micrometer.statsd.StatsdMeterRegistry;
+import io.micrometer.statsd.StatsdMetrics;
 
+import org.springframework.boot.actuate.autoconfigure.metrics.CompositeMeterRegistryAutoConfiguration;
 import org.springframework.boot.actuate.autoconfigure.metrics.MetricsAutoConfiguration;
+import org.springframework.boot.actuate.autoconfigure.metrics.export.simple.SimpleMetricsExportAutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -37,16 +43,14 @@ import org.springframework.context.annotation.Configuration;
  * @since 2.0.0
  */
 @Configuration
-@AutoConfigureBefore(MetricsAutoConfiguration.class)
+@AutoConfigureBefore({ CompositeMeterRegistryAutoConfiguration.class,
+		SimpleMetricsExportAutoConfiguration.class })
+@AutoConfigureAfter(MetricsAutoConfiguration.class)
+@ConditionalOnBean(Clock.class)
 @ConditionalOnClass(StatsdMeterRegistry.class)
+@ConditionalOnProperty(prefix = "management.metrics.export.statsd", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(StatsdProperties.class)
 public class StatsdMetricsExportAutoConfiguration {
-
-	@Bean
-	@ConditionalOnMissingBean
-	public Clock micrometerClock() {
-		return Clock.SYSTEM;
-	}
 
 	@Bean
 	@ConditionalOnMissingBean(StatsdConfig.class)
@@ -55,6 +59,7 @@ public class StatsdMetricsExportAutoConfiguration {
 	}
 
 	@Bean
+	@ConditionalOnMissingBean
 	public StatsdMeterRegistry statsdMeterRegistry(StatsdConfig statsdConfig,
 			HierarchicalNameMapper hierarchicalNameMapper, Clock clock) {
 		return new StatsdMeterRegistry(statsdConfig, hierarchicalNameMapper, clock);
@@ -64,6 +69,11 @@ public class StatsdMetricsExportAutoConfiguration {
 	@ConditionalOnMissingBean
 	public HierarchicalNameMapper hierarchicalNameMapper() {
 		return HierarchicalNameMapper.DEFAULT;
+	}
+
+	@Bean
+	public StatsdMetrics statsdMetrics() {
+		return new StatsdMetrics();
 	}
 
 }

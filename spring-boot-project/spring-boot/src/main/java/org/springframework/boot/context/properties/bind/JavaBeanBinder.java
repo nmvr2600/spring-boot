@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,8 +26,10 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import org.springframework.beans.BeanUtils;
+import org.springframework.boot.context.properties.bind.Binder.Context;
 import org.springframework.boot.context.properties.source.ConfigurationPropertyName;
 import org.springframework.boot.context.properties.source.ConfigurationPropertyState;
+import org.springframework.core.MethodParameter;
 import org.springframework.core.ResolvableType;
 
 /**
@@ -39,8 +41,8 @@ import org.springframework.core.ResolvableType;
 class JavaBeanBinder implements BeanBinder {
 
 	@Override
-	public <T> T bind(ConfigurationPropertyName name, Bindable<T> target,
-			BindContext context, BeanPropertyBinder propertyBinder) {
+	public <T> T bind(ConfigurationPropertyName name, Bindable<T> target, Context context,
+			BeanPropertyBinder propertyBinder) {
 		boolean hasKnownBindableProperties = context.streamSources().anyMatch((
 				s) -> s.containsDescendantOf(name) == ConfigurationPropertyState.PRESENT);
 		Bean<T> bean = Bean.get(target, hasKnownBindableProperties);
@@ -91,9 +93,12 @@ class JavaBeanBinder implements BeanBinder {
 
 		private final Class<?> type;
 
+		private final ResolvableType resolvableType;
+
 		private final Map<String, BeanProperty> properties = new LinkedHashMap<>();
 
-		Bean(Class<?> type) {
+		Bean(ResolvableType resolvableType, Class<?> type) {
+			this.resolvableType = resolvableType;
 			this.type = type;
 			putProperties(type);
 		}
@@ -123,19 +128,23 @@ class JavaBeanBinder implements BeanBinder {
 			int parameterCount = method.getParameterCount();
 			if (name.startsWith("get") && parameterCount == 0) {
 				name = Introspector.decapitalize(name.substring(3));
-				this.properties.computeIfAbsent(name, BeanProperty::new)
+				this.properties.computeIfAbsent(name, this::getBeanProperty)
 						.addGetter(method);
 			}
 			else if (name.startsWith("is") && parameterCount == 0) {
 				name = Introspector.decapitalize(name.substring(2));
-				this.properties.computeIfAbsent(name, BeanProperty::new)
+				this.properties.computeIfAbsent(name, this::getBeanProperty)
 						.addGetter(method);
 			}
 			else if (name.startsWith("set") && parameterCount == 1) {
 				name = Introspector.decapitalize(name.substring(3));
-				this.properties.computeIfAbsent(name, BeanProperty::new)
+				this.properties.computeIfAbsent(name, this::getBeanProperty)
 						.addSetter(method);
 			}
+		}
+
+		private BeanProperty getBeanProperty(String name) {
+			return new BeanProperty(name, this.resolvableType);
 		}
 
 		private void addField(Field field) {
@@ -169,7 +178,7 @@ class JavaBeanBinder implements BeanBinder {
 
 		@SuppressWarnings("unchecked")
 		public static <T> Bean<T> get(Bindable<T> bindable, boolean canCallGetValue) {
-			Class<?> type = bindable.getType().resolve();
+			Class<?> type = bindable.getType().resolve(Object.class);
 			Supplier<T> value = bindable.getValue();
 			T instance = null;
 			if (canCallGetValue && value != null) {
@@ -181,7 +190,7 @@ class JavaBeanBinder implements BeanBinder {
 			}
 			Bean<?> bean = Bean.cached;
 			if (bean == null || !type.equals(bean.getType())) {
-				bean = new Bean<>(type);
+				bean = new Bean<>(bindable.getType(), type);
 				cached = bean;
 			}
 			return (Bean<T>) bean;
@@ -229,14 +238,17 @@ class JavaBeanBinder implements BeanBinder {
 
 		private final String name;
 
+		private final ResolvableType declaringClassType;
+
 		private Method getter;
 
 		private Method setter;
 
 		private Field field;
 
-		BeanProperty(String name) {
+		BeanProperty(String name, ResolvableType declaringClassType) {
 			this.name = BeanPropertyName.toDashedForm(name);
+			this.declaringClassType = declaringClassType;
 		}
 
 		public void addGetter(Method getter) {
@@ -263,9 +275,13 @@ class JavaBeanBinder implements BeanBinder {
 
 		public ResolvableType getType() {
 			if (this.setter != null) {
-				return ResolvableType.forMethodParameter(this.setter, 0);
+				MethodParameter methodParameter = new MethodParameter(this.setter, 0);
+				return ResolvableType.forMethodParameter(methodParameter,
+						this.declaringClassType);
 			}
-			return ResolvableType.forMethodReturnType(this.getter);
+			MethodParameter methodParameter = new MethodParameter(this.getter, -1);
+			return ResolvableType.forMethodParameter(methodParameter,
+					this.declaringClassType);
 		}
 
 		public Annotation[] getAnnotations() {

@@ -19,6 +19,8 @@ package org.springframework.boot.actuate.autoconfigure.endpoint.web.documentatio
 import java.util.Arrays;
 import java.util.List;
 
+import javax.sql.DataSource;
+
 import org.flywaydb.core.api.MigrationState;
 import org.flywaydb.core.api.MigrationType;
 import org.junit.Test;
@@ -26,11 +28,12 @@ import org.junit.Test;
 import org.springframework.boot.actuate.flyway.FlywayEndpoint;
 import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.EmbeddedDataSourceConfiguration;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
+import org.springframework.boot.jdbc.EmbeddedDatabaseConnection;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
 import org.springframework.restdocs.mockmvc.MockMvcRestDocumentation;
 import org.springframework.restdocs.payload.FieldDescriptor;
 
@@ -44,22 +47,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * @author Andy Wilkinson
  */
-@AutoConfigureTestDatabase
 public class FlywayEndpointDocumentationTests extends MockMvcEndpointDocumentationTests {
 
 	@Test
 	public void flyway() throws Exception {
 		this.mockMvc.perform(get("/actuator/flyway")).andExpect(status().isOk())
-				.andDo(MockMvcRestDocumentation.document("flyway",
-						responseFields(
-								fieldWithPath("contexts")
-										.description("Application contexts keyed by id"),
+				.andDo(MockMvcRestDocumentation.document("flyway", responseFields(
+						fieldWithPath("contexts")
+								.description("Application contexts keyed by id"),
 						fieldWithPath("contexts.*.flywayBeans.*.migrations").description(
 								"Migrations performed by the Flyway instance, keyed by"
-										+ " Flyway bean name."))
-												.andWithPrefix(
-														"contexts.*.flywayBeans.*.migrations.[].",
-														migrationFieldDescriptors())
+										+ " Flyway bean name.")).andWithPrefix(
+												"contexts.*.flywayBeans.*.migrations.[].",
+												migrationFieldDescriptors())
 												.and(parentIdField())));
 	}
 
@@ -84,9 +84,8 @@ public class FlywayEndpointDocumentationTests extends MockMvcEndpointDocumentati
 						"Rank of the applied migration, if any. Later migrations have "
 								+ "higher ranks.")
 						.optional(),
-				fieldWithPath("script")
-						.description(
-								"Name of the script used to execute the migration, if any.")
+				fieldWithPath("script").description(
+						"Name of the script used to execute the migration, if any.")
 						.optional(),
 				fieldWithPath("state").description("State of the migration. ("
 						+ describeEnumValues(MigrationState.class) + ")"),
@@ -102,6 +101,13 @@ public class FlywayEndpointDocumentationTests extends MockMvcEndpointDocumentati
 	@Import({ BaseDocumentationConfiguration.class, EmbeddedDataSourceConfiguration.class,
 			FlywayAutoConfiguration.class })
 	static class TestConfiguration {
+
+		@Bean
+		public DataSource dataSource() {
+			return new EmbeddedDatabaseBuilder().generateUniqueName(true).setType(
+					EmbeddedDatabaseConnection.get(getClass().getClassLoader()).getType())
+					.build();
+		}
 
 		@Bean
 		public FlywayEndpoint endpoint(ApplicationContext context) {

@@ -17,16 +17,18 @@
 package org.springframework.boot.actuate.endpoint.web.reactive;
 
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
+import org.springframework.boot.actuate.endpoint.web.EndpointMapping;
 import org.springframework.boot.actuate.endpoint.web.annotation.ControllerEndpoint;
 import org.springframework.boot.actuate.endpoint.web.annotation.ExposableControllerEndpoint;
 import org.springframework.boot.actuate.endpoint.web.annotation.RestControllerEndpoint;
-import org.springframework.boot.endpoint.web.EndpointMapping;
 import org.springframework.util.Assert;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.reactive.HandlerMapping;
@@ -92,6 +94,9 @@ public class ControllerEndpointHandlerMapping extends RequestMappingHandlerMappi
 	private RequestMappingInfo withEndpointMappedPatterns(
 			ExposableControllerEndpoint endpoint, RequestMappingInfo mapping) {
 		Set<PathPattern> patterns = mapping.getPatternsCondition().getPatterns();
+		if (patterns.isEmpty()) {
+			patterns = new HashSet<>(Arrays.asList(getPathPatternParser().parse("")));
+		}
 		PathPattern[] endpointMappedPatterns = patterns.stream()
 				.map((pattern) -> getEndpointMappedPattern(endpoint, pattern))
 				.toArray(PathPattern[]::new);

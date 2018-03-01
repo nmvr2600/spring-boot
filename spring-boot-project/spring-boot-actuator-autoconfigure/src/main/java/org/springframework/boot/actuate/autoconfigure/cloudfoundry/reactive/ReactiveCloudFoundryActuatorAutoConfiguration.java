@@ -16,17 +16,25 @@
 
 package org.springframework.boot.actuate.autoconfigure.cloudfoundry.reactive;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.actuate.autoconfigure.cloudfoundry.CloudFoundryWebEndpointDiscoverer;
 import org.springframework.boot.actuate.autoconfigure.endpoint.condition.ConditionalOnEnabledEndpoint;
 import org.springframework.boot.actuate.autoconfigure.health.HealthEndpointAutoConfiguration;
+import org.springframework.boot.actuate.endpoint.ExposableEndpoint;
 import org.springframework.boot.actuate.endpoint.invoke.ParameterValueMapper;
+import org.springframework.boot.actuate.endpoint.web.EndpointLinksResolver;
+import org.springframework.boot.actuate.endpoint.web.EndpointMapping;
 import org.springframework.boot.actuate.endpoint.web.EndpointMediaTypes;
+import org.springframework.boot.actuate.endpoint.web.ExposableWebEndpoint;
 import org.springframework.boot.actuate.endpoint.web.PathMapper;
+import org.springframework.boot.actuate.endpoint.web.annotation.ControllerEndpointsSupplier;
 import org.springframework.boot.actuate.health.HealthEndpoint;
 import org.springframework.boot.actuate.health.ReactiveHealthEndpointWebExtension;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
@@ -38,7 +46,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.cloud.CloudPlatform;
-import org.springframework.boot.endpoint.web.EndpointMapping;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -85,23 +92,28 @@ public class ReactiveCloudFoundryActuatorAutoConfiguration {
 	@Bean
 	public CloudFoundryWebFluxEndpointHandlerMapping cloudFoundryWebFluxEndpointHandlerMapping(
 			ParameterValueMapper parameterMapper, EndpointMediaTypes endpointMediaTypes,
-			WebClient.Builder webClientBuilder) {
+			WebClient.Builder webClientBuilder,
+			ControllerEndpointsSupplier controllerEndpointsSupplier) {
 		CloudFoundryWebEndpointDiscoverer endpointDiscoverer = new CloudFoundryWebEndpointDiscoverer(
 				this.applicationContext, parameterMapper, endpointMediaTypes,
 				PathMapper.useEndpointId(), Collections.emptyList(),
 				Collections.emptyList());
 		CloudFoundrySecurityInterceptor securityInterceptor = getSecurityInterceptor(
 				webClientBuilder, this.applicationContext.getEnvironment());
+		Collection<ExposableWebEndpoint> webEndpoints = endpointDiscoverer.getEndpoints();
+		List<ExposableEndpoint<?>> allEndpoints = new ArrayList<>();
+		allEndpoints.addAll(webEndpoints);
+		allEndpoints.addAll(controllerEndpointsSupplier.getEndpoints());
 		return new CloudFoundryWebFluxEndpointHandlerMapping(
-				new EndpointMapping("/cloudfoundryapplication"),
-				endpointDiscoverer.getEndpoints(), endpointMediaTypes,
-				getCorsConfiguration(), securityInterceptor);
+				new EndpointMapping("/cloudfoundryapplication"), webEndpoints,
+				endpointMediaTypes, getCorsConfiguration(), securityInterceptor,
+				new EndpointLinksResolver(allEndpoints));
 	}
 
 	private CloudFoundrySecurityInterceptor getSecurityInterceptor(
-			WebClient.Builder restTemplateBuilder, Environment environment) {
+			WebClient.Builder webClientBuilder, Environment environment) {
 		ReactiveCloudFoundrySecurityService cloudfoundrySecurityService = getCloudFoundrySecurityService(
-				restTemplateBuilder, environment);
+				webClientBuilder, environment);
 		ReactiveTokenValidator tokenValidator = new ReactiveTokenValidator(
 				cloudfoundrySecurityService);
 		return new CloudFoundrySecurityInterceptor(tokenValidator,
@@ -112,9 +124,11 @@ public class ReactiveCloudFoundryActuatorAutoConfiguration {
 	private ReactiveCloudFoundrySecurityService getCloudFoundrySecurityService(
 			WebClient.Builder webClientBuilder, Environment environment) {
 		String cloudControllerUrl = environment.getProperty("vcap.application.cf_api");
+		boolean skipSslValidation = environment.getProperty(
+				"management.cloudfoundry.skip-ssl-validation", Boolean.class, false);
 		return (cloudControllerUrl == null ? null
 				: new ReactiveCloudFoundrySecurityService(webClientBuilder,
-						cloudControllerUrl));
+						cloudControllerUrl, skipSslValidation));
 	}
 
 	private CorsConfiguration getCorsConfiguration() {

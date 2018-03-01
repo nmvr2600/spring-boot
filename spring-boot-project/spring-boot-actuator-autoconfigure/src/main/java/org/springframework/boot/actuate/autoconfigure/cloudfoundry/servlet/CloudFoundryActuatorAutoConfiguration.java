@@ -16,16 +16,25 @@
 
 package org.springframework.boot.actuate.autoconfigure.cloudfoundry.servlet;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 import org.springframework.boot.actuate.autoconfigure.cloudfoundry.CloudFoundryWebEndpointDiscoverer;
 import org.springframework.boot.actuate.autoconfigure.endpoint.condition.ConditionalOnEnabledEndpoint;
 import org.springframework.boot.actuate.autoconfigure.health.HealthEndpointAutoConfiguration;
 import org.springframework.boot.actuate.autoconfigure.web.servlet.ServletManagementContextAutoConfiguration;
+import org.springframework.boot.actuate.endpoint.ExposableEndpoint;
 import org.springframework.boot.actuate.endpoint.invoke.ParameterValueMapper;
+import org.springframework.boot.actuate.endpoint.web.EndpointLinksResolver;
+import org.springframework.boot.actuate.endpoint.web.EndpointMapping;
 import org.springframework.boot.actuate.endpoint.web.EndpointMediaTypes;
+import org.springframework.boot.actuate.endpoint.web.ExposableWebEndpoint;
 import org.springframework.boot.actuate.endpoint.web.PathMapper;
+import org.springframework.boot.actuate.endpoint.web.annotation.ControllerEndpointsSupplier;
+import org.springframework.boot.actuate.endpoint.web.annotation.ServletEndpointsSupplier;
 import org.springframework.boot.actuate.health.HealthEndpoint;
 import org.springframework.boot.actuate.health.HealthEndpointWebExtension;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
@@ -38,7 +47,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.autoconfigure.security.SecurityProperties;
 import org.springframework.boot.cloud.CloudPlatform;
-import org.springframework.boot.endpoint.web.EndpointMapping;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -87,17 +95,24 @@ public class CloudFoundryActuatorAutoConfiguration {
 	@Bean
 	public CloudFoundryWebEndpointServletHandlerMapping cloudFoundryWebEndpointServletHandlerMapping(
 			ParameterValueMapper parameterMapper, EndpointMediaTypes endpointMediaTypes,
-			RestTemplateBuilder restTemplateBuilder) {
+			RestTemplateBuilder restTemplateBuilder,
+			ServletEndpointsSupplier servletEndpointsSupplier,
+			ControllerEndpointsSupplier controllerEndpointsSupplier) {
 		CloudFoundryWebEndpointDiscoverer discoverer = new CloudFoundryWebEndpointDiscoverer(
 				this.applicationContext, parameterMapper, endpointMediaTypes,
 				PathMapper.useEndpointId(), Collections.emptyList(),
 				Collections.emptyList());
 		CloudFoundrySecurityInterceptor securityInterceptor = getSecurityInterceptor(
 				restTemplateBuilder, this.applicationContext.getEnvironment());
+		Collection<ExposableWebEndpoint> webEndpoints = discoverer.getEndpoints();
+		List<ExposableEndpoint<?>> allEndpoints = new ArrayList<>();
+		allEndpoints.addAll(webEndpoints);
+		allEndpoints.addAll(servletEndpointsSupplier.getEndpoints());
+		allEndpoints.addAll(controllerEndpointsSupplier.getEndpoints());
 		return new CloudFoundryWebEndpointServletHandlerMapping(
-				new EndpointMapping("/cloudfoundryapplication"),
-				discoverer.getEndpoints(), endpointMediaTypes, getCorsConfiguration(),
-				securityInterceptor);
+				new EndpointMapping("/cloudfoundryapplication"), webEndpoints,
+				endpointMediaTypes, getCorsConfiguration(), securityInterceptor,
+				new EndpointLinksResolver(allEndpoints));
 	}
 
 	private CloudFoundrySecurityInterceptor getSecurityInterceptor(
@@ -115,9 +130,8 @@ public class CloudFoundryActuatorAutoConfiguration {
 		String cloudControllerUrl = environment.getProperty("vcap.application.cf_api");
 		boolean skipSslValidation = environment.getProperty(
 				"management.cloudfoundry.skip-ssl-validation", Boolean.class, false);
-		return (cloudControllerUrl == null ? null
-				: new CloudFoundrySecurityService(restTemplateBuilder, cloudControllerUrl,
-						skipSslValidation));
+		return (cloudControllerUrl == null ? null : new CloudFoundrySecurityService(
+				restTemplateBuilder, cloudControllerUrl, skipSslValidation));
 	}
 
 	private CorsConfiguration getCorsConfiguration() {

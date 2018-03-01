@@ -105,8 +105,9 @@ public class ApplicationHome {
 
 	private boolean isUnitTest() {
 		try {
-			for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
-				if (element.getClassName().startsWith("org.junit.")) {
+			StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+			for (int i = stackTrace.length - 1; i >= 0; i--) {
+				if (stackTrace[i].getClassName().startsWith("org.junit.")) {
 					return true;
 				}
 			}
